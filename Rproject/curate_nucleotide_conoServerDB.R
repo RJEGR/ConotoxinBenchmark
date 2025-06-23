@@ -8,6 +8,12 @@
 # Split conserved nucleotide sequences by taxon (species or genus)
 # For every taxon, obtain Worms taxonomy lineage for further purposes (Fernando)
 
+# XML format
+# always extract individual noe from each entry (use xml_find_first instead of xml_find_all)
+# Do NOT extract all node at once from full document, or yo lose correspondence
+# if there are multiple subnode, decide if want to keep as a list or combine with paste(collapse = ",")
+
+
 
 rm(list = ls())
 
@@ -15,83 +21,198 @@ if(!is.null(dev.list())) dev.off()
 
 options(stringsAsFactors = FALSE, readr.show_col_types = FALSE)
 
+outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
 
-# Nucleotide
 
 url <- 'https://www.conoserver.org/download/conoserver_nucleic.xml.gz'
 
-# Open a connection to the gzipped file at the URL
 con <- gzcon(url(url, "rb"))
 
-
-# Install required packages if needed
-# install.packages("xml2")
-# Load required packages
 
 library(xml2)
 
 library(tidyverse)
 
-# if as file:
+encoding <- "UTF-8" 
 
-outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
+head(xml_lines <- readLines(con, encoding = encoding, warn = FALSE))
 
-# f <- list.files(path = dir, pattern = "xml.gz", full.names = T)
-# Open a gzipped connection and read the lines
-
-# con <- gzfile(f[2], open = "rt") # 'rt' for reading text
-
-xml_lines <- readLines(con, warn = FALSE)
+doc <- read_xml(paste(xml_lines, collapse = "\n"),
+  encoding = "UTF-8",as_html = T,
+  options = c("RECOVER", "NOERROR", "NOBLANKS"))
 
 close(con)
 
-# Collapse lines and parse as XML
-# (Read as html to support special character as greek letters)
+entries <- xml_find_all(doc, ".//entry")
 
-doc <- read_html(paste(xml_lines, collapse = "\n")) # options = c("NOBLANKS", "NSCLEAN")
+# Function to extract id and proteinsencoded subnodes for each entry
+extract_entry_info <- function(entry_node) {
+  # Get id (assuming one per entry)
+  entry_id <- xml_text(xml_find_first(entry_node, "./id"))
+  
+  # Find all proteins under proteinsencoded
+  proteins <- xml_find_all(entry_node, "./proteinsencoded/protein")
+  
+  # For each protein, extract subfields (add more if needed)
+  protein_list <- lapply(proteins, function(prot) {
+    list(
+      proteinid = xml_text(xml_find_first(prot, "./proteinid")),
+      proteinname = xml_text(xml_find_first(prot, "./proteinname"))
+      # add more subfields here if needed
+    )
+  })
+  
+  
+  
+  # Return a list with entry id and proteins info
+  list(
+    id = entry_id,
+    proteinsencoded = protein_list
+  )
+}
+
+extract_entry_info <- function(entry_node) {
+  
+  # pb <- txtProgressBar(min = 0, max = n, style = 3) # style=3 is a nice load bar
+  # 
+  # results <- vector("list", n)
+  # for (i in seq_len(n)) {
+  #   results[[i]] <- extract_entry_info(entries[[i]])
+  #   setTxtProgressBar(pb, i)
+  # }
+  # close(pb)
+  
+  # Get id (assuming one per entry)
+  entry_id <- xml_text(xml_find_first(entry_node, "./id"))
+  
+  
+  cat(entry_id,"\n")
+  
+  # nucleotide_list <- lapply(entry_node, function(node) {
+  #   list(
+  #     organismlatin = xml_text(xml_find_first(node, "organismlatin")),
+  #     organismdiet = xml_text(xml_find_first(node, "organismdiet")),
+  #     entry_id = xml_text(xml_find_first(node, "id")),
+  #     name = xml_text(xml_find_first(node, "name")),
+  #     sequence = xml_text(xml_find_first(node, "sequence"))
+  #   )
+  # })
+  
+  xpath_vec_nuc <- c("organismlatin","organismdiet","organismregion","name","sequence")
+  
+  nucleotide_list <- lapply(xpath_vec_nuc, function(xpath) { xml_text(xml_find_first(entry_node, xpath)) })
+  
+  nucleotide_list <- as.data.frame(nucleotide_list, stringsAsFactors = FALSE)
+  
+  colnames(nucleotide_list) <- xpath_vec_nuc 
+  
+  # Find all proteins under proteinsencoded
+  proteins <- xml_find_all(entry_node, "./proteinsencoded/protein")
+  
+  xpath_vec <- c("proteinid","proteinname","genesuperfamily","proteinsequence")
+  
+  if (!length(proteins) == 0) {
+    
+    protein_list <- lapply(xpath_vec, function(xpath) { xml_text(xml_find_first(proteins, xpath)) })
+    
+    # protein_list <- lapply(proteins, function(prot) {
+    #   list(
+    #     proteinid = xml_text(xml_find_first(prot, "./proteinid")),
+    #     proteinname = xml_text(xml_find_first(prot, "./proteinname")),
+    #     genesuperfamily = xml_text(xml_find_first(prot, "./genesuperfamily")),
+    #     proteinsequence = xml_text(xml_find_first(prot, "./proteinsequence"))
+    #   )
+    # })
+    
+    # as for some nucleotide there are not protein related:
+    
+    protein_list <- as.data.frame(protein_list, stringsAsFactors = FALSE)
 
 
-all_nodes <- xml_find_all(doc, "//*",)
+    
+  } else {
 
-# Extract all node names
-node_names <- xml_name(all_nodes)
+    
+    # Return empty data frame with the right columns
+    protein_list <- as.data.frame(matrix(nrow = 1, ncol = length(xpath_vec)))
+  
+  
+  }
+  
+  colnames(protein_list) <- xpath_vec
+  
+  # Return a list with entry id and proteins info
+  
+  data.frame(
+    entry_id,
+    nucleotide_list,
+    protein_list
+  )
+}
 
-# Count occurrences of each node name
-table(node_names)
+# Apply to all entries
+all_entry_data <- lapply(entries, extract_entry_info)
 
-# Extract fields features for nucleotide level
-# must match 3073 records nrow(Nodedf %>% drop_na(id))
 
-xpath_vec_nuc <- c(
-  "proteinid", "proteinname","genesuperfamily","proteintype","proteinsequence",
-  "organismlatin","organismdiet","organismregion","id","name","sequence")
+# Example: print data for first entry
 
-result <- sapply(xpath_vec_nuc, function(xpath) { xml_text(xml_find_first(all_nodes, xpath)) })
+data <- dplyr::bind_rows(all_entry_data) %>% as_tibble() %>% mutate(sequence = str_to_upper(sequence))
 
-result <- as.data.frame(result, stringsAsFactors = FALSE) %>% as_tibble()
+# EDA -----
 
-colnames(result) <- xpath_vec_nuc # xpath_vec_prot
+data
 
-# Creates a fasta file and input
-# Filtering criteria
-# choosing only nucleotides of precursor type and proteinsequence
+data %>%
+  count(organismlatin, sort = T) %>%
+  mutate(organismlatin = factor(organismlatin, levels = unique(organismlatin))) %>%
+  ggplot(aes(y = organismlatin, x = n)) + geom_col()
 
-Nodedf <- result %>% drop_na(id) 
+data %>% count(sequence, proteinsequence, sort = T) 
 
-Nodedf %>% 
-  count(organismlatin) %>% filter(n > 10) %>% view()
+data %>% count(sequence, genesuperfamily, sort = T) 
 
-Nodedf <- Nodedf %>% 
-  count(sequence, id, organismlatin, name, sort = T) %>%
-  mutate(sequence = str_to_upper(sequence))
+data %>% ggplot(aes(nchar(sequence))) + geom_histogram()
 
-Nodedf %>% ggplot(aes(nchar(sequence))) + geom_histogram()
+data %>%
+  drop_na(genesuperfamily) %>%
+  count(genesuperfamily, sort = T) %>%
+  mutate(genesuperfamily = factor(genesuperfamily, levels = unique(genesuperfamily))) %>%
+  ggplot(aes(y = genesuperfamily, x = n)) + geom_col()
+
+data %>% 
+  count(organismlatin, genesuperfamily, sort = T) %>%
+  mutate(genesuperfamily = factor(genesuperfamily, levels = unique(genesuperfamily))) %>%
+  ggplot(aes(organismlatin, genesuperfamily, fill = n)) +
+  geom_tile(color = "white", linewidth = 0.5) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+# Split -----
 
 # Write fasta using a apply to write 
 
-Nodedf <- Nodedf %>% mutate(split_as = organismlatin)
+Nodedf <- data %>% mutate(split_as = genesuperfamily) %>% 
+  mutate(split_as = ifelse(is.na(split_as), "Unknown", split_as)) %>%
+  mutate(split_as = str_replace_all(split_as, " ", "_"))
 
-v <- Nodedf %>% count(split_as, sort = T) %>% pull(split_as)
+# Split apart sf with less than 20 sequences and omiting NA sf
+
+well_represented <- Nodedf %>% 
+  count(split_as, sort = T) %>%
+  filter(n >= 20) %>%
+  pull(split_as)
+  
+less_represented <- Nodedf %>% 
+  count(split_as, sort = T) %>%
+  filter(n < 20) %>%
+  # drop_na() %>%
+  pull(split_as)
+  
+  
+length(c(less_represented, well_represented)) # must match 43 sf + 1 unk sf
+
+v <- Nodedf %>% mutate(split_as = ifelse(is.na(split_as), "Unknown", split_as)) %>% count(split_as, sort = T) %>% pull(split_as)
 
 v <- tail(v)
 
@@ -100,14 +221,15 @@ for (group in v) {
   # Filter for the current group
   tmp <- Nodedf %>%
     filter(split_as == group) %>%
-    unite("id", id:name, sep = "|") %>%
+    # unite("entry_id", entry_id:name, sep = "|") %>%
     pull(sequence, name = id)
   
   # Make DNAStringSet
   seqs <- Biostrings::DNAStringSet(tmp)
   
   # Write to FASTA, use group name in file
-  fasta_file <- file.path(outdir, paste0("conopeptides_", group, ".fasta"))
+  fasta_file <- file.path(outdir, paste0(group, ".fasta"))
+  
   Biostrings::writeXStringSet(seqs, fasta_file)
 }
 
@@ -119,31 +241,4 @@ seqs <- Biostrings::DNAStringSet(seqs)
 
 
 Biostrings::writeXStringSet(seqs, file.path(pub_dir, "conopeptides.fasta"))
-
-# 
-# gene2GO <- split(strsplit(gene2GO$GOs, ";") , gene2GO$gene_id)
-# gene2GO <- lapply(gene2GO, unlist)
-
-
-# PRotein =====
-# url <- 'https://www.conoserver.org/download/conoserver_protein.xml.gz'
-# head(xml_lines[grepl("nucleicAcidId", xml_lines) ], n = 100)
-
-# N00316N00540N02519N02520
-# xml_lines[grepl("N00940|N00316|N00540|N02519|N02520", xml_lines) ]
-
-# head(xml_lines[grepl("N00316|", xml_lines) ], n = 100)
-
-# OR Extract features for protein level
-
-# conoserver identifier|name|organism|protein type|toxin class|gene superfamily|cysteine framework|pharmacological
-# must match 8523 records nrow(Nodedf %>% drop_na(id))
-
-xpath_vec_prot <- c(
-  "class", "cysteineframewrok","genesuperfamily","pharmacologicalfamily",
-  "nucleicacid", "nucleicacidid",
-  "organismlatin","organismdiet","organismregion","id","name","sequence")
-
-
-
 
