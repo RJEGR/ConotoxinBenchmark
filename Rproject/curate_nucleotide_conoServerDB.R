@@ -200,29 +200,26 @@ Nodedf <- data %>% mutate(split_as = genesuperfamily) %>%
 
 well_represented <- Nodedf %>% 
   count(split_as, sort = T) %>%
-  filter(n >= 20) %>%
+  filter(n >= 10) %>%
   pull(split_as)
   
 less_represented <- Nodedf %>% 
   count(split_as, sort = T) %>%
-  filter(n < 20) %>%
+  filter(n < 10) %>%
   # drop_na() %>%
   pull(split_as)
   
   
 length(c(less_represented, well_represented)) # must match 43 sf + 1 unk sf
 
-v <- Nodedf %>% mutate(split_as = ifelse(is.na(split_as), "Unknown", split_as)) %>% count(split_as, sort = T) %>% pull(split_as)
-
-v <- tail(v)
 
 # For each group, subset, format, and write FASTA
-for (group in v) {
+for (group in well_represented) {
   # Filter for the current group
   tmp <- Nodedf %>%
     filter(split_as == group) %>%
     # unite("entry_id", entry_id:name, sep = "|") %>%
-    pull(sequence, name = id)
+    pull(sequence, name = entry_id)
   
   # Make DNAStringSet
   seqs <- Biostrings::DNAStringSet(tmp)
@@ -233,10 +230,18 @@ for (group in v) {
   Biostrings::writeXStringSet(seqs, fasta_file)
 }
 
-seqs <- Nodedf %>% 
-  unite("id", id:name, sep = "|") %>%
-  pull(sequence, name = id)
 
+
+seqs <- Nodedf %>%
+  filter(split_as %in% less_represented) %>%
+  pull(sequence, name = entry_id) %>%
+  Biostrings::DNAStringSet()
+
+
+# Write to FASTA, use group name in file
+fasta_file <- file.path(outdir, paste0("UNDER_superfamily", ".fasta"))
+
+Biostrings::writeXStringSet(seqs, fasta_file)
 seqs <- Biostrings::DNAStringSet(seqs)
 
 
