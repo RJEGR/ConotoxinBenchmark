@@ -11,8 +11,7 @@
 # XML format
 # always extract individual noe from each entry (use xml_find_first instead of xml_find_all)
 # Do NOT extract all node at once from full document, or yo lose correspondence
-# if there are multiple subnode, decide if want to keep as a list or combine with paste(collapse = ",")
-
+# use extract_entry_info to split info from nucleotide and protein nodes
 
 
 rm(list = ls())
@@ -160,7 +159,7 @@ data <- dplyr::bind_rows(all_entry_data) %>% as_tibble() %>% mutate(sequence = s
 
 # EDA -----
 
-data
+data %>% 
 
 data %>%
   count(organismlatin, sort = T) %>%
@@ -188,7 +187,11 @@ data %>%
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 
-# Split -----
+# Filter and Split -----
+
+# assume artifitial RNAseq will be 100 SE
+
+Nodedf <- Nodedf %>% filter(nchar(sequence) >= 100)
 
 # Write fasta using a apply to write 
 
@@ -212,6 +215,14 @@ less_represented <- Nodedf %>%
   
 length(c(less_represented, well_represented)) # must match 43 sf + 1 unk sf
 
+dedup_DNAStringSet <- function(dnaset) {
+  seq_chars <- as.character(dnaset)
+  split_names <- split(names(dnaset), seq_chars)
+  unique_seqs <- Biostrings::DNAStringSet(names(split_names))
+  names(unique_seqs) <- sapply(split_names, paste, collapse="|")
+  unique_seqs
+}
+
 
 # For each group, subset, format, and write FASTA
 for (group in well_represented) {
@@ -224,6 +235,10 @@ for (group in well_represented) {
   # Make DNAStringSet
   seqs <- Biostrings::DNAStringSet(tmp)
   
+  seqs <- dedup_DNAStringSet(seqs)
+  
+  cat(length(seqs), "\n")
+  
   # Write to FASTA, use group name in file
   fasta_file <- file.path(outdir, paste0(group, ".fasta"))
   
@@ -235,15 +250,17 @@ for (group in well_represented) {
 seqs <- Nodedf %>%
   filter(split_as %in% less_represented) %>%
   pull(sequence, name = entry_id) %>%
-  Biostrings::DNAStringSet()
+  Biostrings::DNAStringSet() %>%
+  dedup_DNAStringSet()
 
 
 # Write to FASTA, use group name in file
 fasta_file <- file.path(outdir, paste0("UNDER_superfamily", ".fasta"))
 
 Biostrings::writeXStringSet(seqs, fasta_file)
-seqs <- Biostrings::DNAStringSet(seqs)
 
+# q <- c("ATGCAGACGGCCTACTGGGTGATGGTGATGATGATGGTGTGGATTGCAGCCCCTCTGTCTGAAGGTGGTAAACTGAACGATGTAATTCGGGGTTTGGTGCCAGACGACATAACCCCACAGCTCATGTTGGGAAGTCTGATTTCCCGTCGTCAATCGGAAGAGGGTGGTTCAAATGCAACCAAGAAACCCTATATTCTAAGGGCCAGCGACCAGGTTGCATCTGGGCCATAG")
 
-Biostrings::writeXStringSet(seqs, file.path(pub_dir, "conopeptides.fasta"))
+# dedup_DNAStringSet(seqs)[as.character(dedup_DNAStringSet(seqs)) %in% q]
+
 
