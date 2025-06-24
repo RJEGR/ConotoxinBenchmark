@@ -183,7 +183,7 @@ data %>%
   mutate(genesuperfamily = factor(genesuperfamily, levels = unique(genesuperfamily))) %>%
   ggplot(aes(organismlatin, genesuperfamily, fill = n)) +
   geom_tile(color = "white", linewidth = 0.5) +
-  theme_bw() +
+  theme_bw(base_family = "GillSans", base_size = 12) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 
