@@ -178,7 +178,7 @@ nrow(Nodedf %>% distinct(sequence))
 
 # Write fasta using a apply to write 
 
-Nodedf %>% filter(is.na(genesuperfamily)) %>% view()
+# Nodedf %>% filter(is.na(genesuperfamily)) %>% view()
 
 Nodedf <- Nodedf %>% mutate(split_as = genesuperfamily) %>% 
   mutate(split_as = ifelse(is.na(split_as), "Conopeptides", split_as)) %>%
@@ -231,6 +231,8 @@ dedup_DNAStringSet <- function(dnaset) {
   unique_seqs
 }
 
+
+Nodedf %>% count(split_as) %>% view()
 
 # For each group, subset, format, and write FASTA
 for (group in well_represented) {
