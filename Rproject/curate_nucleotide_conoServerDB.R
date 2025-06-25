@@ -44,32 +44,6 @@ close(con)
 
 entries <- xml_find_all(doc, ".//entry")
 
-# Function to extract id and proteinsencoded subnodes for each entry
-extract_entry_info <- function(entry_node) {
-  # Get id (assuming one per entry)
-  entry_id <- xml_text(xml_find_first(entry_node, "./id"))
-  
-  # Find all proteins under proteinsencoded
-  proteins <- xml_find_all(entry_node, "./proteinsencoded/protein")
-  
-  # For each protein, extract subfields (add more if needed)
-  protein_list <- lapply(proteins, function(prot) {
-    list(
-      proteinid = xml_text(xml_find_first(prot, "./proteinid")),
-      proteinname = xml_text(xml_find_first(prot, "./proteinname"))
-      # add more subfields here if needed
-    )
-  })
-  
-  
-  
-  # Return a list with entry id and proteins info
-  list(
-    id = entry_id,
-    proteinsencoded = protein_list
-  )
-}
-
 extract_entry_info <- function(entry_node) {
   
   # pb <- txtProgressBar(min = 0, max = n, style = 3) # style=3 is a nice load bar
@@ -159,9 +133,7 @@ data <- dplyr::bind_rows(all_entry_data) %>% as_tibble() %>% mutate(sequence = s
 
 # EDA -----
 
-data %>% 
-
-data %>%
+data %>% drop_na(proteinsequence)
   count(organismlatin, sort = T) %>%
   mutate(organismlatin = factor(organismlatin, levels = unique(organismlatin))) %>%
   ggplot(aes(y = organismlatin, x = n)) + geom_col()
@@ -170,7 +142,7 @@ data %>% count(sequence, proteinsequence, sort = T)
 
 data %>% count(sequence, genesuperfamily, sort = T) 
 
-data %>% ggplot(aes(nchar(sequence))) + geom_histogram()
+data %>% ggplot(aes(nchar(sequence))) + geom_histogram() 
 
 data %>%
   drop_na(genesuperfamily) %>%
@@ -190,16 +162,52 @@ data %>%
 # Filter and Split -----
 
 # assume artifitial RNAseq will be 100 SE
+nrow(data)
 
-Nodedf <- Nodedf %>% filter(nchar(sequence) >= 100)
+# Considere remove nucleotide without start codon (optional)
+# ex.
+# data %>% drop_na(proteinsequence) %>% filter(grepl("^ATG", sequence))
+
+nrow(Nodedf <- data %>% filter(!grepl("Patent|patent", name)))
+
+nrow(Nodedf <- Nodedf %>% drop_na(proteinsequence) %>% filter(grepl("^M", proteinsequence)))
+
+nrow(Nodedf <- Nodedf %>% filter(nchar(sequence) >= 100))
+
+nrow(Nodedf %>% distinct(sequence))
 
 # Write fasta using a apply to write 
 
-Nodedf <- data %>% mutate(split_as = genesuperfamily) %>% 
-  mutate(split_as = ifelse(is.na(split_as), "Unknown", split_as)) %>%
+Nodedf %>% filter(is.na(genesuperfamily)) %>% view()
+
+Nodedf <- Nodedf %>% mutate(split_as = genesuperfamily) %>% 
+  mutate(split_as = ifelse(is.na(split_as), "Conopeptides", split_as)) %>%
   mutate(split_as = str_replace_all(split_as, " ", "_"))
 
-# Split apart sf with less than 20 sequences and omiting NA sf
+
+data %>% mutate(split_as = genesuperfamily) %>% 
+  mutate(split_as = ifelse(is.na(split_as), "Conopeptides", split_as)) %>%
+  mutate(split_as = str_replace_all(split_as, " ", "_")) %>%
+  mutate(facet = "A) Raw") %>%
+  rbind(data.frame(Nodedf, facet = "B) Filtered")) %>%
+  drop_na(genesuperfamily) %>%
+  count(facet, genesuperfamily, sort = T) %>%
+  mutate(genesuperfamily = factor(genesuperfamily, levels = unique(genesuperfamily))) %>%
+  ggplot(aes(y = genesuperfamily, x = n)) + geom_col() + facet_grid(~ facet) +
+  theme_bw(base_family = "GillSans", base_size = 14) + labs(x = "n sequences")
+
+Nodedf %>% 
+  count(organismlatin, split_as, sort = T) %>%
+  mutate(split_as = factor(split_as, levels = unique(split_as))) %>%
+  ggplot(aes(organismlatin, split_as, fill = n)) +
+  geom_tile(color = "white", linewidth = 0.5) +
+  theme_bw(base_family = "GillSans", base_size = 14) +
+  # scale_x_discrete(position = "top") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+# Split apart sf with less than 10 sequences and omiting NA sf
 
 well_represented <- Nodedf %>% 
   count(split_as, sort = T) %>%
