@@ -17,7 +17,7 @@ def read_fasta(file_path):
         print(f"Error reading FASTA file: {e}")
         return []
 
-def randomize_sequences(sequences, N, kmer_length=150):
+def randomize_sequences(sequences, N, kmer_length=100):
     if not sequences:
         return []
     
