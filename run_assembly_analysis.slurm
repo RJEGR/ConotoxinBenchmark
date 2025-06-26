@@ -16,16 +16,31 @@ MEM=$SLURM_MEM_PER_NODE
 
 Manifest=$1 # samples.txt
 
-single_reads=`awk '{print "--s" NR, $2}' $Manifest`
+
+
+single_reads=${Manifest%.txt}.concat.fq
+
+# call=`awk '{print $2}' $Manifest | tr "\n" " "`
+
+# To test code
+call=`head -n1 $Manifest | awk '{print $2}' |tr "\n" " "`
+
+cat $call > $single_reads
+
+
+# single_reads=`awk '{print "--s" NR, $2}' $Manifest`
 
 OUTDIR=${Manifest%.txt}_spades_dir
 
 mkdir -p $OUTDIR
 
+EXPORT=/LUSTRE/apps/bioinformatica/SPAdes-3.15.5-Linux/bin/
+export PATH=$PATH:$EXPORT
+
 
 if [ ! -f "1_spades.chkp" ]; then
 
-    call="rnaspades.py $single_reads -t $CPU -m $MEM -o $OUTDIR"
+    call="rnaspades.py -s $single_reads -t $CPU -m $MEM -o $OUTDIR"
 
     eval $call
 
@@ -42,7 +57,7 @@ OUTDIR=${Manifest%.txt}_trinity_dir
 
 mkdir -p $OUTDIR
 
-single_reads=`awk '{print $2}' $Manifest` # comma-delimited list of single-end reads
+# single_reads=`awk '{print $2}' $Manifest` # comma-delimited list of single-end reads
 
 
 if [ ! -f "1_trinity.chkp" ]; then
@@ -67,7 +82,6 @@ source activate soapdenovo-trans
 
 configureFile=`awk '{print "q="""$2}' $Manifest`
 
-
 OUTDIR=${Manifest%.txt}_SOAPdenovo_dir
 
 mkdir -p $OUTDIR
@@ -77,9 +91,9 @@ if [ ! -f "1_SOAPDenovo.chkp" ]; then
 
     call="SOAPdenovo-Trans all -s $configureFile -p $CPU  -o $OUTDIR"
     
-    eval $call
+    echo $call
 
-    touch 1_SOAPDenovo.chkp
+    #touch 1_SOAPDenovo.chkp
 
 else
     echo "..."
@@ -100,9 +114,9 @@ if [ ! -f "1_transabbys.chkp" ]; then
 
     call="transabbys $single_reads --threads $CPU  --outdir $OUTDIR"
     
-    eval $call
+    echo $call
 
-    touch 1_transabbys.chkp
+    # touch 1_transabbys.chkp
 
 else
     echo "..."
@@ -112,14 +126,27 @@ fi
 
 export PATH=/LUSTRE/apps/bioinformatica/idba/bin:$PATH
 
+#QUERY=${Manifest%.txt}.tmp
+
+#single_reads_fa=${QUERY%.tmp}.fa
+
+single_reads_fa=${single_reads%.fq}.fa
+
+#call=`awk '{print $2}' $Manifest | tr "\n" " "`
+
+#cat $call > $QUERY
+
+awk 'NR%4==1 {print ">" substr($0, 2)} NR%4==2 {print}' $single_reads > $single_reads_fa
+
+#rm $QUERY
 
 if [ ! -f "1_idba.chkp" ]; then
 
-    call="Code $CPU  $OUTDIR"
+    call="idba_hybrid -r $single_reads_fa --num_threads $CPU  -o $OUTDIR"
     
-    # eval $call
+    echo $call
 
-    #touch 1_idba.chkp
+    touch 1_idba.chkp
 
 else
     echo "..."
@@ -140,9 +167,9 @@ if [ ! -f "1_rnabloom.chkp" ]; then
 
     # call="java -jar RNA-Bloom.jar -sef $single_end -t $CPU  -outdir $OUTDIR"
     
-    eval $call
+    echo $call
 
-    touch 1_rnabloom.chkp
+    # touch 1_rnabloom.chkp
 
 else
     echo "..."
@@ -158,7 +185,7 @@ if [ ! -f "1_cap3.chkp" ]; then
 
     call="Code $CPU  $OUTDIR"
     
-    # eval $call
+    echo $call
 
     # touch 1_cap3.chkp
 
@@ -176,7 +203,7 @@ mkdir -p $OUTDIR
 
 if [ ! -f "1_Bayesdenovo.chkp" ]; then
 
-    call="BayesDenovo_v1.pl --seqType fq --single $single_end --CPU $CPU  --output $OUTDIR --bamfile $OUTDIR/bamfile.bam --fafile $OUTDIR/bayesdenovo.fa"
+    call="BayesDenovo_v1.pl --seqType fq --single $single_reads --CPU $CPU  --output $OUTDIR --bamfile $OUTDIR/bamfile.bam --fafile $OUTDIR/bayesdenovo.fa"
     
     eval $call
 
@@ -185,6 +212,9 @@ if [ ! -f "1_Bayesdenovo.chkp" ]; then
 else
     echo "..."
 fi
+
+
+rm $single_reads
 
 
 
