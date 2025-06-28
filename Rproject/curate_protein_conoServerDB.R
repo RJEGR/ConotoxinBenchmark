@@ -22,8 +22,7 @@ if(!is.null(dev.list())) dev.off()
 
 options(stringsAsFactors = FALSE, readr.show_col_types = FALSE)
 
-outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
-
+outdir <- "~/Documents/GitHub/ConotoxinBenchmark/hhsuite_model_dir/"
 
 url <- 'https://www.conoserver.org/download/conoserver_protein.xml.gz'
 
@@ -109,7 +108,72 @@ dplyr::bind_rows(
   as_tibble() 
 
 # Apply to all entries
-all_entry_data <- lapply(entries[1:10], extract_entry_info)
+all_entry_data <- lapply(entries, extract_entry_info)
 
-dplyr::bind_rows(all_entry_data) %>% as_tibble() %>% mutate(sequence = str_to_upper(sequence)) %>% view()
+data <- dplyr::bind_rows(all_entry_data) %>% 
+  as_tibble() %>% 
+  mutate(sequence = str_to_upper(sequence)) 
 
+
+data %>% dplyr::count(class, sort = T)
+
+# nrow(Nodedf <- data %>% filter(class == "conotoxin"))
+
+nrow(Nodedf <- data %>% filter(!grepl("Patent|patent", name)))
+
+nrow(Nodedf <- Nodedf %>% filter(!grepl("unclassified", class)))
+
+nrow(Nodedf <- Nodedf %>% drop_na(sequence) %>% filter(grepl("^M", sequence)))
+
+nrow(Nodedf %>% distinct(sequence))
+
+Nodedf %>% count(genesuperfamily) 
+
+# Write fasta using a apply to write 
+
+Nodedf <- Nodedf %>% mutate(split_as = genesuperfamily) %>% 
+  # mutate(split_as = ifelse(is.na(split_as), "Conopeptides", split_as)) %>%
+  mutate(split_as = str_replace_all(split_as, " ", "_"))
+
+
+dedup_StringSet <- function(dnaset) {
+  seq_chars <- as.character(dnaset)
+  split_names <- split(names(dnaset), seq_chars)
+  unique_seqs <- Biostrings::AAStringSet(names(split_names))
+  names(unique_seqs) <- sapply(split_names, paste, collapse="|")
+  unique_seqs
+}
+
+
+# Nodedf %>% filter(is.na(genesuperfamily)) %>% count(class)
+
+Nodedf <- Nodedf %>% 
+  mutate(split_as = ifelse(is.na(split_as), 
+    paste("Other",class, sep = "_"), 
+    split_as))
+
+Nodedf %>% count(class)
+
+well_represented <- Nodedf %>% 
+  count(split_as, sort = T) %>%
+  pull(split_as)
+
+for (group in well_represented) {
+  # Filter for the current group
+  tmp <- Nodedf %>%
+    filter(split_as == group) %>%
+    # unite("entry_id", entry_id:name, sep = "|") %>%
+    pull(sequence, name = id)
+  
+  # Make DNAStringSet
+  seqs <- Biostrings::AAStringSet(tmp)
+  
+  seqs <- dedup_StringSet(seqs)
+  
+  cat(length(seqs), "\n")
+  
+  # Write to FASTA, use group name in file
+  fasta_file <- file.path(outdir, paste0(group, ".fasta"))
+  
+  Biostrings::writeXStringSet(seqs, fasta_file)
+}
