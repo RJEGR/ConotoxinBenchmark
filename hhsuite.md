@@ -28,7 +28,7 @@ https://mmseqs.com/latest/userguide.pdf#page=50.72
 ```bash
 CPU=20 #$SLURM_NPROCS
 MEM=100 #$SLURM_MEM_PER_NODE
-INPUT=fastafile
+INPUT=O1_superfamily_californicus.fasta
 
 mmseqs align -h
 
@@ -36,14 +36,15 @@ mmseqs align -h
 mmseqs createdb $INPUT sequenceDB 
 
 # mmseqs prefilter <i:queryDB> <i:targetDB> <o:prefilterDB>
-
-mmseqs prefilter sequenceDB sequenceDB resultDB_pref -s 7
+#  -s FLOAT           Sensitivity: 1.0 faster; 4.0 fast; 7.5 sensitive [4.000]
+# using 7 allow sequences passed prefiltering 
+mmseqs prefilter sequenceDB sequenceDB resultDB_pref -s 7 --threads $CPU
 
 # Create a HHblits database:
 # mmseqs result2msa <i:queryDB> <i:targetDB> <i:resultDB> <o:msaDB> [options]
 
 mmseqs result2msa sequenceDB sequenceDB resultDB_pref MSA --msa-format-mode 2
-mmseqs result2msa sequenceDB sequenceDB resultDB_pref MSA --msa-format-mode 5
+mmseqs result2msa sequenceDB sequenceDB resultDB_pref MSA --msa-format-mode 5 --threads $CPU
 
 --msa-format-mode INT        Format MSA as: 0: binary cA3M DB
                               1: binary ca3m w. consensus DB
@@ -59,21 +60,31 @@ mmseqs result2msa sequenceDB sequenceDB resultDB_pref MSA --msa-format-mode 5
 # mmseqs align sequenceDB sequenceDB resultDB_pref resultDB_aln --thread $CPU
 
 ```
+
+
+```bash
+mafft --localpair --maxiterate 1000 $INPUT > ${INPUT%.fasta}.aln
+
+# L-INS-i specializes in generating accurate alignments by:
+# Iterative refinement: Repeatedly optimizing the alignment using consistency-based scoring derived from all pairwise comparisons.
+# Local alignment focus: Prioritizing conserved local segments rather than forcing full-length matches, making it ideal for sequences with variable domains or non-homologous regions.
+
+```
+
 # Generating a multiple sequence alignment using HHblits
 Continue here 
 https://github.com/soedinglab/hh-suite/wiki#hhsearchhhblits-model-format-hhm-format
 
 ```bash
-hhmake -i MSA -M first
-hhblits -cpu 4 -i data/query.seq -d databases/uniclust30_2018_08/uniclust30_2018_08 -oa3m query.a3m -n 1
+hhmake -i MSA # issues w/ mmseq format
+
+# Now you can generate a hidden Markov model (HMM) from this MSA:
+
+hhmake -i ${INPUT%.fasta}.aln -M first # this works, see output hhm
+
+hhblits -cpu 4 -i $INPUT -d O1_superfamily_californicus.hhm -oa3m query.a3m -n 1
 ```
 
-```bash
-mafft --localpair --maxiterate 1000 input.fasta > output.aln  # Direct  
-# OR  
-mafft-linsi input.fasta > output.aln                         # Alias[1][9][11]  
-
-```
 
 Populate using HHblits
 Multiple alignments can be read in A2M, A3M, or aligned FASTA format. 
@@ -85,3 +96,4 @@ hhblits -h all
 hhblits -cpu 4 -i data/query.seq -d databases/uniclust30_2018_08/uniclust30_2018_08 -oa3m query.a3m -n 1
 
 ```
+Using HMMs both on the query and the database side greatly enhances the sensitivity/selectivity and alignment quality over sequence-profile based methods such as PSI-BLAST. HHsearch is the first software to employ HMM-HMM comparison and HHblits is the first profile-profile comparison method that is fast enough to do iterative searches to build MSAs.
