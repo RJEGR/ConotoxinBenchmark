@@ -102,7 +102,6 @@ extract_entry_info <- function(entry_node) {
   )
 }
 
-
 dplyr::bind_rows(
   extract_entry_info(entries[10])) %>%
   as_tibble() 
@@ -128,6 +127,8 @@ nrow(Nodedf <- Nodedf %>% drop_na(sequence) %>% filter(grepl("^M", sequence)))
 nrow(Nodedf %>% distinct(sequence))
 
 Nodedf %>% count(genesuperfamily) 
+
+
 
 # Write fasta using a apply to write 
 
@@ -177,3 +178,51 @@ for (group in well_represented) {
   
   Biostrings::writeXStringSet(seqs, fasta_file)
 }
+
+
+# creates a subset of nodes for californicus ====
+
+nrow(calNodedf <- data %>% filter(grepl("californicus", organismlatin)))
+nrow(calNodedf <- calNodedf %>% drop_na(genesuperfamily))
+# nrow(filter(grepl("^M", sequence)))
+calNodedf
+
+
+calNodedf %>% count(class)
+
+nrow(calNodedf %>% distinct(sequence))
+
+
+calNodedf <- calNodedf %>% mutate(split_as = genesuperfamily) %>% 
+  # mutate(split_as = ifelse(is.na(split_as), "Conopeptides", split_as)) %>%
+  mutate(split_as = str_replace_all(split_as, " ", "_")) %>%
+  mutate(split_as = gsub("-$","",split_as)) %>%
+  mutate(cysteineframewrok = ifelse(is.na(cysteineframewrok), "cf", cysteineframewrok))
+
+calNodedf %>% count(split_as, sort = T) 
+
+well_represented <- calNodedf %>% 
+  count(split_as, sort = T) %>%
+  pull(split_as)
+
+for (group in well_represented) {
+  # Filter for the current group
+  tmp <- calNodedf %>%
+    filter(split_as == group) %>%
+    select(sequence, id, name, class, genesuperfamily, cysteineframewrok) %>%
+    unite("id", id:cysteineframewrok, sep = "|") %>%
+    pull(sequence, name = id)
+  
+  # Make DNAStringSet
+  seqs <- Biostrings::AAStringSet(tmp)
+  
+  seqs <- dedup_StringSet(seqs)
+  
+  cat(length(seqs), "\n")
+  
+  # Write to FASTA, use group name in file
+  fasta_file <- file.path(outdir, paste0(group, "_californicus.fasta"))
+  
+  Biostrings::writeXStringSet(seqs, fasta_file)
+}
+
