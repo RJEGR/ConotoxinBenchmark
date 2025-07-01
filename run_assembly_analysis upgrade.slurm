@@ -5,17 +5,12 @@
 #SBATCH --ntasks-per-node=24
 #SBATCH -t 6-00:00:00
 
-# sbatch run_*.slurm randomize_samples.txt
-
-# Creates the Manifest data
-
-# for file in $(ls *set1.fq); do basename=${file##*/}; base="${basename%*_1.fastq}"; bs="${base}"; fwr=${base}_1.fastq; rev=${base}_2.fastq; echo "$bs" `printf "$PWD/$fwr"`; done > ${sf}_randomize_samples.txt
-
 CPU=$SLURM_NPROCS
 MEM=$SLURM_MEM_PER_NODE
 
 Manifest=$1 # samples.txt
 
+Config=$2 # Configure file
 
 
 single_reads=${Manifest%.txt}.concat.fq
@@ -25,42 +20,45 @@ call=`head -n1 $Manifest | awk '{print $2}' |tr "\n" " "`
 
 cat $call > $single_reads
 
+#Exporting tools
 
-# creates a while to run individual chkpoints per assembly tool
-
-spades="rnaspades.py -s $single_reads -t $CPU -m $MEM -o $OUTDIR"
-trinity="Trinity --seqType fq --max_memory 120G --single $single_reads --no_normalize_reads --CPU $CPU --output $OUTDIR"
-transabbys="transabbys $single_reads --threads $CPU  --outdir $OUTDIR"
-BayesDenovo="BayesDenovo_v1.pl --seqType fq --single $single_reads --CPU $CPU  --output $OUTDIR --bamfile $OUTDIR/bamfile.bam --fafile $OUTDIR/bayesdenovo.fa"
-SOAPdenovo="SOAPdenovo-Trans all -s $configureFile -p $CPU  -o $OUTDIR"
+export PATH=/LUSTRE/apps/bioinformatica/SPAdes-3.15.5-Linux/bin:$PATH
+export PATH=/LUSTRE/apps/bioinformatica/idba/bin:$PATH
+export PATH=/LUSTRE/apps/bioinformatica/BayesDenovo/BayesDenovo-v1:$PATH
 
 
-tools=("spades" "trinity" "transabbys" "BayesDenovo")
-i=0
+# Tools working under conda-2024
 
-while [ $i -lt ${#tools[@]} ]; do
-    tool=${tools[$i]}
-    OUTDIR=${Manifest%.txt}_${tool}_dir
-    mkdir -p $OUTDIR
+module load conda-2024_py3.8
+source activate soapdenovo-trans
 
-    if [ ! -f "1_${tool}.chkp" ]; then
-        call=${!tool}
-        eval $call
+# Tools working under conda-2025
+
+module load conda-2025
+conda activate transabbys
+conda activate rnabloom
+conda activate cap3 
+
+
+while read -r line; do 
+    
+    tool=$(echo $line | awk -F "=" '{print $1}')
+    
+    call=$(echo $line | awk -F "=" '{print $2}')     
+   
+   if [ ! -f "1_${tool}.chkp" ]; then
+
+        OUTDIR=${Manifest%.txt}_${tool}_dir
+
+        echo $OUTDIR
+
+        echo $call
+
         touch 1_${tool}.chkp
+
+        
     else
         echo "${tool} checkpoint already exists."
     fi
-
-    i=$((i + 1))
-done
-
-
-
-
-
-
-
-
-
-
+done < $Config
 
