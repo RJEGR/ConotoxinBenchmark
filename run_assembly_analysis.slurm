@@ -5,20 +5,39 @@
 #SBATCH --ntasks-per-node=24
 #SBATCH -t 6-00:00:00
 
-CPU=$SLURM_NPROCS
-MEM=$SLURM_MEM_PER_NODE
+# Check for --help flag
+if [[ "$1" == "--help" ]]; then
+    echo "Usage: $(basename $0) <Manifest> <Config>"
+    echo
+    echo "Arguments:"
+    echo "  Manifest: A text file containing sample information. The first column should contain sample names, and the second column should contain file paths."
+    echo "  Config:   A configuration file where each line specifies a tool and its command in the format 'tool=command'."
+    echo
+    echo "Description:"
+    echo "  This script performs meta-analysis by concatenating reads from the Manifest file, configuring tools from the Config file, and executing the specified commands."
+    exit 0
+fi
 
-Manifest=$1 # samples.txt
+Manifest=$1 
+Config=$2 
 
-Config=$2 # Configure file
-
+if [[ -z "$Manifest" || -z "$Config" ]]; then
+    echo "Error: Missing required arguments."
+    echo "Run '$(basename $0) --help' for usage information."
+    exit 1
+fi
 
 single_reads=${Manifest%.txt}.concat.fq
 
-
 call=`head -n1 $Manifest | awk '{print $2}' |tr "\n" " "`
+# call=`awk '{print $2}' $Manifest | tr "\n" " "`
 
 cat $call > $single_reads
+
+
+CPU=$SLURM_NPROCS
+MEM=$SLURM_MEM_PER_NODE
+
 
 #Exporting tools
 
@@ -29,8 +48,7 @@ export PATH=/LUSTRE/apps/bioinformatica/BayesDenovo/BayesDenovo-v1:$PATH
 
 # Tools working under conda-2024
 
-conda deactivate
-
+# conda deactivate
 
 module load conda-2024_py3.8
 
@@ -72,17 +90,21 @@ while read -r line; do
     
     tool=$(echo $line | awk -F "=" '{print $1}')
     
-    call=$(echo $line | awk -F "=" '{print $2}')     
+    call=$(echo $line | awk -F "=" '{print $2}') 
+
+    chkp_file="1_${tool}_${Manifest%.txt}.chkp"   
    
-   if [ ! -f "1_${tool}.chkp" ]; then
+   if [ ! -f "$chkp_file" ]; then
 
         OUTDIR=${Manifest%.txt}_${tool}_dir
 
-        echo $OUTDIR
+        mkdir -p $OUTDIR
 
-        echo $call
+        call=$(eval echo $call) # Expands variables in the command to fix issue with quotes         
 
-        touch 1_${tool}.chkp
+        eval $call
+
+        touch $chkp_file
 
         
     else
@@ -90,3 +112,4 @@ while read -r line; do
     fi
 done < $Config
 
+rm *.concat.fq
