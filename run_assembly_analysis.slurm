@@ -1,228 +1,92 @@
 #!/bin/bash
-#SBATCH --job-name=TrueSet
+#SBATCH --job-name=metaanalysis
 #SBATCH -N 1
 #SBATCH --mem=120GB
 #SBATCH --ntasks-per-node=24
 #SBATCH -t 6-00:00:00
-
-# sbatch run_*.slurm randomize_samples.txt
-
-# Creates the Manifest data
-
-# for file in $(ls *set1.fq); do basename=${file##*/}; base="${basename%*_1.fastq}"; bs="${base}"; fwr=${base}_1.fastq; rev=${base}_2.fastq; echo "$bs" `printf "$PWD/$fwr"`; done > ${sf}_randomize_samples.txt
 
 CPU=$SLURM_NPROCS
 MEM=$SLURM_MEM_PER_NODE
 
 Manifest=$1 # samples.txt
 
+Config=$2 # Configure file
 
 
 single_reads=${Manifest%.txt}.concat.fq
 
-# call=`awk '{print $2}' $Manifest | tr "\n" " "`
 
-# To test code
 call=`head -n1 $Manifest | awk '{print $2}' |tr "\n" " "`
 
 cat $call > $single_reads
 
+#Exporting tools
 
-# single_reads=`awk '{print "--s" NR, $2}' $Manifest`
-
-OUTDIR=${Manifest%.txt}_spades_dir
-
-mkdir -p $OUTDIR
-
-EXPORT=/LUSTRE/apps/bioinformatica/SPAdes-3.15.5-Linux/bin/
-export PATH=$PATH:$EXPORT
+export PATH=/LUSTRE/apps/bioinformatica/SPAdes-3.15.5-Linux/bin:$PATH
+export PATH=/LUSTRE/apps/bioinformatica/idba/bin:$PATH
+export PATH=/LUSTRE/apps/bioinformatica/BayesDenovo/BayesDenovo-v1:$PATH
 
 
-if [ ! -f "1_spades.chkp" ]; then
+# Tools working under conda-2024
 
-    call="rnaspades.py -s $single_reads -t $CPU -m $MEM -o $OUTDIR"
-
-    eval $call
-
-    touch 1_spades.chkp
-
-else
-    echo "..."
-fi
-
-# Trinity
-module load trinityrnaseq-v2.15.1
-
-OUTDIR=${Manifest%.txt}_trinity_dir
-
-mkdir -p $OUTDIR
-
-# single_reads=`awk '{print $2}' $Manifest` # comma-delimited list of single-end reads
-
-
-if [ ! -f "1_trinity.chkp" ]; then
-
-    #call="Trinity --seqType fq --max_memory 120G --samples_file $Manifest --no_normalize_reads --CPU $CPU --output $OUTDIR"
-    call="Trinity --seqType fq --max_memory 120G --single $single_reads --no_normalize_reads --CPU $CPU --output $OUTDIR"
-    
-    eval $call
-
-    touch 1_trinity.chkp
-
-else
-    echo "..."
-fi
-
-# SOAPDenovo-trans
+conda deactivate
 
 
 module load conda-2024_py3.8
-source activate soapdenovo-trans
 
+export PATH=/LUSTRE/apps/Anaconda/2024/miniconda3-py3.8/envs/soapdenovo-trans/bin/:$PATH
 
-configureFile=`awk '{print "q="""$2}' $Manifest`
-
-OUTDIR=${Manifest%.txt}_SOAPdenovo_dir
-
-mkdir -p $OUTDIR
-
-
-if [ ! -f "1_SOAPDenovo.chkp" ]; then
-
-    call="SOAPdenovo-Trans all -s $configureFile -p $CPU  -o $OUTDIR"
-    
-    echo $call
-
-    #touch 1_SOAPDenovo.chkp
-
-else
-    echo "..."
-fi
-
-# transabbys
+# Tools working under conda-2025
 
 module load conda-2025
-conda activate transabbys
 
-OUTDIR=${Manifest%.txt}_transabbys_dir
+export PATH=/LUSTRE/apps/Anaconda/2025/miniconda3/envs/rnabloom/bin/:$PATH
+export PATH=/LUSTRE/apps/Anaconda/2025/miniconda3/envs/transabbys/bin/:$PATH
 
-mkdir -p $OUTDIR
+# export PATH=/LUSTRE/apps/Anaconda/2025/miniconda3/envs/cap3/bin/:$PATH
 
-single_reads=`awk '{print "--se" NR, $2}' $Manifest`
+# cap3 needs FASTA FORMAT
+# CAP3="cap3 $CPU  $OUTDIR"
 
-if [ ! -f "1_transabbys.chkp" ]; then
+configureFile=${Manifest%.txt}_SOAPdenovo.config
 
-    call="transabbys $single_reads --threads $CPU  --outdir $OUTDIR"
+cat <<EOF > $configureFile
+#maximal read length
+max_rd_len=50
+[LIB]
+#maximal read length in this lib
+rd_len_cutof=45
+#average insert size
+avg_ins=100
+#if sequence needs to be reversed 
+reverse_seq=0
+#in which part(s) the reads are used
+asm_flags=3
+#minimum aligned length to contigs for a reliable read location (at least 32 for short insert size)
+map_len=32
+#fastq file for single reads
+q=$single_reads 
+EOF
+
+while read -r line; do 
     
-    echo $call
-
-    # touch 1_transabbys.chkp
-
-else
-    echo "..."
-fi
-
-# idba
-
-export PATH=/LUSTRE/apps/bioinformatica/idba/bin:$PATH
-
-#QUERY=${Manifest%.txt}.tmp
-
-#single_reads_fa=${QUERY%.tmp}.fa
-
-single_reads_fa=${single_reads%.fq}.fa
-
-#call=`awk '{print $2}' $Manifest | tr "\n" " "`
-
-#cat $call > $QUERY
-
-awk 'NR%4==1 {print ">" substr($0, 2)} NR%4==2 {print}' $single_reads > $single_reads_fa
-
-#rm $QUERY
-
-if [ ! -f "1_idba.chkp" ]; then
-
-    call="idba_hybrid -r $single_reads_fa --num_threads $CPU  -o $OUTDIR"
+    tool=$(echo $line | awk -F "=" '{print $1}')
     
-    echo $call
+    call=$(echo $line | awk -F "=" '{print $2}')     
+   
+   if [ ! -f "1_${tool}.chkp" ]; then
 
-    touch 1_idba.chkp
+        OUTDIR=${Manifest%.txt}_${tool}_dir
 
-else
-    echo "..."
-fi
+        echo $OUTDIR
 
-# rnabloom
+        echo $call
 
-rnabloom
-module load conda-2025
-conda activate rnabloom
+        touch 1_${tool}.chkp
 
-OUTDIR=${Manifest%.txt}_rnabloom_dir
-
-mkdir -p $OUTDIR
-
-
-if [ ! -f "1_rnabloom.chkp" ]; then
-
-    # call="java -jar RNA-Bloom.jar -sef $single_end -t $CPU  -outdir $OUTDIR"
-    
-    echo $call
-
-    # touch 1_rnabloom.chkp
-
-else
-    echo "..."
-fi
-
-# cap3
-
-cap3
-module load conda-2025
-conda activate cap3 
-
-if [ ! -f "1_cap3.chkp" ]; then
-
-    call="Code $CPU  $OUTDIR"
-    
-    echo $call
-
-    # touch 1_cap3.chkp
-
-else
-    echo "..."
-fi
-
-# Bayesdenovo
-
-export PATH=/LUSTRE/apps/bioinformatica/BayesDenovo/BayesDenovo-v1:$PATH
-
-OUTDIR=${Manifest%.txt}_BayesDenovo_dir
-
-mkdir -p $OUTDIR
-
-if [ ! -f "1_Bayesdenovo.chkp" ]; then
-
-    call="BayesDenovo_v1.pl --seqType fq --single $single_reads --CPU $CPU  --output $OUTDIR --bamfile $OUTDIR/bamfile.bam --fafile $OUTDIR/bayesdenovo.fa"
-    
-    eval $call
-
-    touch 1_Bayesdenovo.chkp
-
-else
-    echo "..."
-fi
-
-
-rm $single_reads
-
-
-
-
-
-
-
-
-
-
+        
+    else
+        echo "${tool} checkpoint already exists."
+    fi
+done < $Config
 
