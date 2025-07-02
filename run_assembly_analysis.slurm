@@ -39,16 +39,51 @@ CPU=$SLURM_NPROCS
 MEM=$SLURM_MEM_PER_NODE
 
 
-#Exporting tools
+# First run stand-alone tools
 
 export PATH=/LUSTRE/apps/bioinformatica/SPAdes-3.15.5-Linux/bin:$PATH
+export PATH=/LUSTRE/apps/bioinformatica/trinityrnaseq-v2.15.1:$PATH
 export PATH=/LUSTRE/apps/bioinformatica/idba/bin:$PATH
 export PATH=/LUSTRE/apps/bioinformatica/BayesDenovo/BayesDenovo-v1:$PATH
 
+module load conda-2025
+export PATH=/LUSTRE/apps/Anaconda/2025/miniconda3/envs/rnabloom/bin/:$PATH
+
+
+while read -r line; do 
+    
+    tool=$(echo $line | awk -F "=" '{print $1}')
+    
+    call=$(echo $line | awk -F "=" '{print $2}') 
+
+    chkp_file="1_${tool}_${Manifest%.txt}.chkp"   
+   
+   if [ ! -f "$chkp_file" ]; then
+
+        OUTDIR=${Manifest%.txt}_${tool}_dir
+
+        mkdir -p $OUTDIR
+
+        call=$(eval echo $call) # Expands variables in the command to fix issue with quotes         
+
+        echo "Executing: $call"
+
+        eval $call
+
+        touch $chkp_file
+
+        
+    else
+        echo "${tool} checkpoint already exists."
+    fi
+done < $Config
+
+
+exit
+
+# Now run the tools that require a configuration file or python dependencies
 
 # Tools working under conda-2024
-
-# conda deactivate
 
 module load conda-2024_py3.8
 
@@ -57,8 +92,8 @@ export PATH=/LUSTRE/apps/Anaconda/2024/miniconda3-py3.8/envs/soapdenovo-trans/bi
 # Tools working under conda-2025
 
 module load conda-2025
+# transabbys use samtools lower version than trinity, and trinity crash, therefore does not export PATHS in parallel
 
-export PATH=/LUSTRE/apps/Anaconda/2025/miniconda3/envs/rnabloom/bin/:$PATH
 export PATH=/LUSTRE/apps/Anaconda/2025/miniconda3/envs/transabbys/bin/:$PATH
 
 # export PATH=/LUSTRE/apps/Anaconda/2025/miniconda3/envs/cap3/bin/:$PATH
@@ -86,30 +121,4 @@ map_len=32
 q=$single_reads 
 EOF
 
-while read -r line; do 
-    
-    tool=$(echo $line | awk -F "=" '{print $1}')
-    
-    call=$(echo $line | awk -F "=" '{print $2}') 
-
-    chkp_file="1_${tool}_${Manifest%.txt}.chkp"   
-   
-   if [ ! -f "$chkp_file" ]; then
-
-        OUTDIR=${Manifest%.txt}_${tool}_dir
-
-        mkdir -p $OUTDIR
-
-        call=$(eval echo $call) # Expands variables in the command to fix issue with quotes         
-
-        eval $call
-
-        touch $chkp_file
-
-        
-    else
-        echo "${tool} checkpoint already exists."
-    fi
-done < $Config
-
-rm *.concat.fq
+# rm *.concat.fq
