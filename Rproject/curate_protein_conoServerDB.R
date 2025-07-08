@@ -128,7 +128,7 @@ nrow(Nodedf %>% distinct(sequence))
 
 Nodedf %>% count(genesuperfamily) 
 
-
+write_rds(data, )
 
 # Write fasta using a apply to write 
 
