@@ -11,4 +11,14 @@ MEM=$5
 
 export PATH=/LUSTRE/apps/bioinformatica/BayesDenovo/BayesDenovo-v1:$PATH
 
-BayesDenovo_v1.pl --seqType fq --left $forward_fq --right $reverse_fq --CPU $CPU  --output $OUTDIR --bamfile $OUTDIR/bamfile.bam --fafile $OUTDIR/bayesdenovo.fa
+which BayesDenovo_v1.pl
+
+call="BayesDenovo_v1.pl --seqType fq --left $forward_fq --right $reverse_fq --CPU $CPU  --output $OUTDIR --bamfile $OUTDIR/bamfile.bam --fafile $OUTDIR/bayesdenovo.fa"
+
+echo $call
+
+eval $call
+
+# mv $OUTDIR/bayesdenovo.fa ASSEMBLIES_DIR/BAYES.fa
+
+exit

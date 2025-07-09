@@ -1,19 +1,28 @@
-#!/bin/bash -ex
+#!/bin/bash
 
-single_reads=$1 
-CPU=$2
-MEM=$3
-OUTDIR=$4
+forward_fq=$1
+reverse_fq=$2
 
-#OUTDIR=${single_reads%.*}_rnabloom_dir
+OUTDIR=$3
 
-#mkdir -p $OUTDIR
+CPU=$4
+MEM=$5
+
 
 module load conda-2025
+source activate base
+conda activate rnabloom
 
-# conda activate rnabloom
+which rnabloom
 
-export PATH=/LUSTRE/apps/Anaconda/2025/miniconda3/envs/rnabloom/bin/:$PATH
+call="rnabloom -l $forward_fq -r $reverse_fq -t $CPU  -outdir $OUTDIR -mem $MEM"
 
+echo $call
 
-rnabloom -sef $single_reads -t $CPU  -outdir $OUTDIR
+eval $call
+
+BS=`echo $OUTDIR | awk -F'_' '{print $1"_"$2}'`
+
+mv $OUTDIR/rnabloom.transcripts.fa ${BS}_FASTA_DIR/${OUTDIR%_dir}.fa
+
+exit

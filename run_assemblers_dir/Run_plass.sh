@@ -1,9 +1,12 @@
-#!/bin/bash -ex
+#!/bin/bash
 
-single_reads=$1 
-CPU=$2
-MEM=$3
-OUTDIR=$4
+forward_fq=$1
+reverse_fq=$2
+
+OUTDIR=$3
+
+CPU=$4
+MEM=$5
 
 
 module load conda-2025
@@ -12,13 +15,25 @@ source activate base
 
 source activate plass
 
- # assemble paired-end reads 
-  #plass assemble examples/reads_1.fastq.gz examples/reads_2.fastq.gz assembly.fas tmp
 
-  # assemble single-end reads 
-plass assemble $single_reads $OUTDIR/transcripts_plass.fa $OUTDIR/tmp --threads $CPU --min-length 40 --filter-proteins 0
+which plass
+which penguin
 
-penguin nuclassemble $single_reads $OUTDIR/transcripts_penguin.fa $OUTDIR/tmp
+call="plass assemble $forward_fq $reverse_fq $OUTDIR/transcripts_plass.fa $OUTDIR/tmp --threads $CPU --min-length 40 --filter-proteins 0"
 
+echo $call
 
-exit 0
+eval $call
+
+call="penguin nuclassemble $forward_fq $reverse_fq  $OUTDIR/transcripts_penguin.fa $OUTDIR/tmp --threads $CPU"
+
+echo $call
+
+eval $call
+
+BS=`echo $OUTDIR | awk -F'_' '{print $1"_"$2}'`
+
+mv $OUTDIR/transcripts_penguin.fa ${BS}_FASTA_DIR/${OUTDIR%_PLASS_dir}_PENGUIN.fa
+mv $OUTDIR/transcripts_plass.fa ${BS}_FASTA_DIR/${OUTDIR%_PLASS_dir}_PLASS.fa
+
+exit

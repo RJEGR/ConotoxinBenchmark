@@ -4,10 +4,11 @@
 #SBATCH --mem=120GB
 #SBATCH --ntasks-per-node=24
 #SBATCH -t 6-00:00:00
+#SBATCH -o out.%J
+#SBATCH -e err.%J
 
-# Check for --help flag
 
-if [[ "$1" == "--help" ]]; then
+if [[ "$1" == "-h" ]]; then
     echo "Usage: $(basename $0) <Manifest> <Config>"
     echo
     echo "Arguments:"
@@ -28,8 +29,8 @@ if [[ -z "$Manifest" || -z "$CONFIG" ]]; then
     exit 1
 fi
 
-forward_fq=${Manifest%.txt}.concat.fq
-reverse_fq=${Manifest%.txt}.concat.fq
+forward_fq=${Manifest%.*}_concat_PE1.fq
+reverse_fq=${Manifest%.*}_concat_PE2.fq
 
 call=`awk '{print $2}' $Manifest | tr "\n" " "`
 cat $call > $forward_fq
@@ -40,10 +41,12 @@ cat $call > $reverse_fq
 CPU=$SLURM_NPROCS
 MEM=$SLURM_MEM_PER_NODE
 
-#./Run_trinity.sh $single_reads $CPU $MEM
-#./Run_spades.sh $single_reads $CPU $MEM
 
 chmod +x run_assemblers_dir/*sh
+
+FASTA_DIR="${Manifest%.*}_FASTA_DIR"
+
+mkdir -p $FASTA_DIR
 
 while read -r line; do 
     # Skip lines starting with '#'
@@ -64,21 +67,43 @@ while read -r line; do
         
         mkdir -p $OUTDIR
 
-        call=$(eval echo $call $forward_fq $reverse_fq $CPU $MEM $OUTDIR)         
+        call=$(eval echo $call $forward_fq $reverse_fq  $OUTDIR $CPU $MEM)         
 
         echo "Executing: $call"
 
-        #eval $call
+        eval $call
 
-        #touch $chkp_file
+        touch $chkp_file
+
+        rm -fr $OUTDIR
 
     else
         echo "${chkp_file} checkpoint already exists."
     fi
 done < $CONFIG
 
+rm ${Manifest%.*}_concat_PE*.fq 
 
-# End of script
+# Continue with the next steps: transrate
 
+REFDIR=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/reads_artificiales/inputs
+
+#Trinity/contigs.csv
+
+mkdir -p 2_transrate_dir
+
+chmod +x 2_transrate.sh
+
+
+find "$FASTA_DIR" -maxdepth 1 -type f -name '*.fa' | while read -r ASSEMBLER; do
+
+    FAMILYPREFIX=$(basename ${FASTA_DIR%_FASTA_DIR})
+    REF=$REFDIR/${FAMILYPREFIX}.fasta
+    BSCONTIG=$(basename ${ASSEMBLER%.fa})
+    TRANSRATE_DIR=${BSCONTIG}_transrate_dir
+
+    call="./2_transrate.sh $ASSEMBLER $REF $TRANSRATE_DIR"
+    eval $call
+done
 
 exit

@@ -1,10 +1,12 @@
-#!/bin/bash -ex
+#!/bin/bash
 
-single_reads=$1 
-CPU=$2
-MEM=$3
-OUTDIR=$4
+forward_fq=$1
+reverse_fq=$2
 
+OUTDIR=$3
+
+CPU=$4
+MEM=$5
 
 module load conda-2025
 
@@ -14,6 +16,16 @@ conda activate transabbys
 
 # transabbys use samtools lower version than trinity, and trinity crash, therefore does not export PATHS in parallel
 
-transabyss --se $single_reads --threads $CPU --outdir $OUTDIR
+which transabyss
 
-exit 0
+call="transabyss --pe $forward_fq $reverse_fq --threads $CPU --outdir $OUTDIR"
+
+echo $call
+
+eval $call
+
+BS=`echo $OUTDIR | awk -F'_' '{print $1"_"$2}'`
+
+mv $OUTDIR/transabyss-final.fa ${BS}_FASTA_DIR/${OUTDIR%_dir}.fa
+
+exit
