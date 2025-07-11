@@ -82,8 +82,6 @@ while read -r line; do
     fi
 done < $CONFIG
 
-rm ${Manifest%.*}_concat_PE*.fq 
-
 # Continue with the next steps: transrate
 
 REFDIR=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/reads_artificiales/inputs
@@ -102,8 +100,14 @@ find "$FASTA_DIR" -maxdepth 1 -type f -name '*.fa' | while read -r ASSEMBLER; do
     BSCONTIG=$(basename ${ASSEMBLER%.fa})
     TRANSRATE_DIR=${BSCONTIG}_transrate_dir
 
-    call="./2_transrate.sh $ASSEMBLER $REF $TRANSRATE_DIR"
+    call="./2_transrate.sh $forward_fq $reverse_fq $ASSEMBLER $REF $TRANSRATE_DIR"
+
+    #call="./2_transrate.sh $ASSEMBLER $REF $TRANSRATE_DIR"
+    
     eval $call
 done
+
+rm ${Manifest%.*}_concat_PE*.fq 
+
 
 exit

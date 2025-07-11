@@ -7,29 +7,42 @@
 #SBATCH -o out.%J
 #SBATCH -e err.%J
 
+
 REFDIR=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/reads_artificiales/inputs
 
-FASTA_DIR=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/1_assembly_dir/RUN_BATCH_DIR/FASTA_DIR_BKP
+run_transrate() {
+    Manifest=$1
 
-FASTQ_DIR=
+    FASTA_DIR="${Manifest%.*}_FASTA_DIR"
+    forward_fq=${Manifest%.*}_concat_PE1.fq
+    reverse_fq=${Manifest%.*}_concat_PE2.fq
 
-find "$FASTA_DIR" -maxdepth 1 -type f -name '*.fa' | while read -r ASSEMBLER; do
+    call=$(awk '{print $2}' "$Manifest" | tr "\n" " ")
+    cat $call > $forward_fq
 
-    FAMILYPREFIX=$(basename ${FASTA_DIR%_FASTA_DIR})
-    REF=$REFDIR/${FAMILYPREFIX}.fasta
-    BSCONTIG=$(basename ${ASSEMBLER%.fa})
-    TRANSRATE_DIR=${BSCONTIG}_transrate_dir
+    call=$(awk '{print $3}' "$Manifest" | tr "\n" " ")
+    cat $call > $reverse_fq
 
-    call="transrate --left $forward_fq --right $reverse_fq --assembly $ref --output $outdir --threads $threads"
+    mkdir -p 2_transrate_dir
 
-    echo "Executing: $call"
-    eval $call
+    find "$FASTA_DIR" -maxdepth 1 -type f -name '*.fa' | while read -r asm; do
+        FAMILYPREFIX=$(basename "${FASTA_DIR%_FASTA_DIR}")
+        ref=$REFDIR/${FAMILYPREFIX}.fasta
+        BSCONTIG=$(basename "${asm%.fa}")
+        TRANSRATE_DIR=${BSCONTIG}_transrate_dir
 
+        call="transrate --left $forward_fq --right $reverse_fq --assembly $asm --reference $ref --output 2_transrate_dir/$TRANSRATE_DIR --threads 20"
+
+        echo "Executing: $call"
+        eval $call
+    done
+
+    rm "${Manifest%.*}_concat_PE"*.fq
+}
+
+# Loop over every *.txt file and run run_transrate
+for Manifest in *.txt; do
+    run_transrate "$Manifest"
 done
 
-
-
-# output=${contigs_a%.*}_to_${true_ref_b%.*}_transrate_dir
-
-
-
+exit

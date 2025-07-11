@@ -9,7 +9,7 @@
 ## TP - (N reference sequences in InputNsequences) 
 # Sensitivity: The proportion of true transcripts that are correctly assembled. 
 # Precision: The proportion of assembled transcripts that are actually true. 
-# F1-score: A harmonic mean of precision and sensitivity, providing an overall measure of assembly quality. 
+# F1-score (Recall): A harmonic mean of precision and sensitivity, providing an overall measure of assembly quality. 
 
 rm(list = ls())
 
@@ -46,6 +46,7 @@ transratedf <- lapply(subdirs, read_transrate_scores)
 transratedf <- do.call(rbind,transratedf)
 
 transratedf %>%  count(Assembler)
+
 
 # Calculate metrics  -----
 
@@ -124,9 +125,6 @@ calculate_metrics <- function(transratedf, reference_coverage_val = 1) {
  
 }
 
-# In reference_coverage_val, try a loop to itinerate evaluation of recall
-
-
 
 metricsdf <- calculate_metrics(transratedf, reference_coverage_val = 0.9) %>%
   mutate(
@@ -136,40 +134,17 @@ metricsdf <- calculate_metrics(transratedf, reference_coverage_val = 0.9) %>%
     Precision = TP /(TP + FN),
     # F1-score (aka Recall): A harmonic mean of precision and sensitivity, providing an overall measure of assembly quality. 
     
-    Recall = 2 * (Precision * Sensitivity) / (Precision + Sensitivity),
-    
-    threshold = reference_coverage_val
+    Recall = 2 * (Precision * Sensitivity) / (Precision + Sensitivity)
     )
 
 
-reference_coverage_seq <- seq(0.1, 1, by = 0.1)
-
-metrics_list <- lapply(reference_coverage_seq, function(i) {
-  calculate_metrics(transratedf, reference_coverage_val = i) %>%
-    mutate(
-      Sensitivity = TP / (TP + FN),
-      Precision = TP / (TP + FP),
-      Recall = 2 * (Precision * Sensitivity) / (Precision + Sensitivity),
-      threshold = i
-    )
-})
-
-metricsdf <- bind_rows(metrics_list)
-
-metricsdf %>% 
-  select(threshold, Recall, Assembler, Superfamily) %>%
-  ggplot(aes(x = threshold, y = Recall, color = Assembler)) +
-  facet_grid(~Assembler) +
-  geom_line(aes(group = Superfamily))
-
-
-plot_val <- "Recall" # Recall, Sensitivity
+plot_val <- "Precision" # Recall, Sensitivity
 
 # subtitle <- "Sensitivity: The proportion of true transcripts that are correctly assembled (TP / (TP + FP))"
 
-# subtitle <- "Precision: The proportion of assembled transcripts that are actually true (TP /(TP + FN))"
+subtitle <- "Precision: The proportion of assembled transcripts that are actually true (TP /(TP + FN))"
 
-subtitle <- "F1-score (aka Recall): A harmonic mean of precision and sensitivity,\nproviding an overall measure of assembly quality."
+# subtitle <- "F1-score (aka Recall): A harmonic mean of precision and sensitivity,\nproviding an overall measure of assembly quality."
 
 metricsdf  %>%
   dplyr::rename("fill" = plot_val) %>%
@@ -207,6 +182,35 @@ metricsdf  %>%
       frame.colour = "black", frame.linewidth = 0.35,
       label.theme = element_text(size = 10, family = "GillSans")
     ))
+
+
+
+
+# In reference_coverage_val, try a loop to itinerate evaluation of recall
+
+
+
+
+reference_coverage_seq <- seq(0.1, 1, by = 0.1)
+
+metrics_list <- lapply(reference_coverage_seq, function(i) {
+  calculate_metrics(transratedf, reference_coverage_val = i) %>%
+    mutate(
+      Sensitivity = TP / (TP + FN),
+      Precision = TP / (TP + FP),
+      Recall = 2 * (Precision * Sensitivity) / (Precision + Sensitivity),
+      threshold = i
+    )
+})
+
+metricsdf <- bind_rows(metrics_list)
+
+metricsdf %>% 
+  select(threshold, Recall, Assembler, Superfamily) %>%
+  ggplot(aes(x = threshold, y = Recall, color = Assembler)) +
+  facet_grid(~Assembler) +
+  geom_line(aes(group = Superfamily))
+
 
 
 # metricsdf %>%
