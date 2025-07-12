@@ -47,6 +47,23 @@ transratedf <- do.call(rbind,transratedf)
 
 transratedf %>%  count(Assembler)
 
+transratedf %>% 
+  select_if(is.double) %>%
+  mutate_all(~replace(., is.na(.), 0)) %>%
+  cor(method = "spearman") -> M
+  
+  
+testRes <- corrplot::cor.mtest(M, conf.level = 0.95)
+
+corrplot::corrplot(M, p.mat = testRes$p ,method = "color", type="upper", order = "hclust", insig = "label_sig")
+
+transratedf %>%
+  group_by(Assembler) %>% sample_frac(size = 0.05) %>% ungroup() %>%
+  select_if(is.double) %>%
+  mutate_all(~replace(., is.na(.), 0)) %>%
+  # pairs(pch = 19, lower.panel = NULL)
+  GGally::ggpairs()
+  
 
 # Calculate metrics  -----
 
@@ -138,13 +155,13 @@ metricsdf <- calculate_metrics(transratedf, reference_coverage_val = 0.9) %>%
     )
 
 
-plot_val <- "Precision" # Recall, Sensitivity
+plot_val <- "Recall" # Precision, Sensitivity
 
 # subtitle <- "Sensitivity: The proportion of true transcripts that are correctly assembled (TP / (TP + FP))"
 
-subtitle <- "Precision: The proportion of assembled transcripts that are actually true (TP /(TP + FN))"
+# subtitle <- "Precision: The proportion of assembled transcripts that are actually true (TP /(TP + FN))"
 
-# subtitle <- "F1-score (aka Recall): A harmonic mean of precision and sensitivity,\nproviding an overall measure of assembly quality."
+subtitle <- "F1-score (aka Recall): A harmonic mean of precision and sensitivity,\nproviding an overall measure of assembly quality."
 
 metricsdf  %>%
   dplyr::rename("fill" = plot_val) %>%
@@ -225,69 +242,6 @@ metricsdf %>%
   geom_line()
 
 
-heatmapdf <- transratedf %>%
-  filter(reference_coverage > 0.5) %>%
-  drop_na(hits) %>%
-  count(Superfamily, Assembler) %>% 
-  pivot_wider(names_from = Assembler, values_from = n, values_fill = 0) %>%
-  data.frame(row.names = "Superfamily") %>%
-  as("matrix")
-
-# 
-
-InputNsequences <- InputNsequences[match(rownames(heatmapdf), rownames(InputNsequences)),]
-
-identical(rownames(heatmapdf), names(InputNsequences))
-
-heatmapdf <- heatmapdf/InputNsequences
-
-
-
-
-Totaldf <- transratedf %>% 
-  count(Superfamily, Assembler)
-
-Hitsdf <- transratedf %>% 
-  drop_na(hits) %>%
-  count(Superfamily, Assembler)
-
-
-
-heatmapdf %>%
-  as_tibble(rownames = "Superfamily") %>% 
-  pivot_longer(-Superfamily, values_to = "fill", names_to = "Assembler") %>%
-  mutate(fill = ifelse(fill == 0, NA, fill)) %>%
-  ggplot(aes(Superfamily, Assembler, fill = fill)) +
-  geom_tile(color = 'white', linewidth = 0.2) +
-  scale_fill_gradient2(low = "blue", high = "red", mid = "orange", 
-    na.value = "white", midpoint = 0.5, limit = c(0, 1), 
-    breaks = c(0, 0.5, 1),
-    name = NULL) +
-  geom_text(aes(label = scales::percent(fill, accuracy = 1)), color = "white", family = "GillSans") +
-  theme_bw(base_family = "GillSans", base_size = 12) +
-  theme(legend.position = "top",
-    panel.grid.minor.y = element_blank(),
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor.x = element_blank(),
-    panel.grid.major.x = element_blank(),
-    axis.text.y = element_text(size = 7),
-    # axis.text.x = element_text(angle = 0, hjust = 1, vjust = 1,size = 7),
-    strip.text = element_text(
-      angle = 0, hjust = 0,
-      size = 10)) +
-  guides(
-    fill = guide_colorbar(
-      barwidth = unit(2, "in"),
-      barheight = unit(0.1, "in"), 
-      label.position = "bottom",
-      label.hjust = 0.5,
-      title = "Accuracy",
-      title.position  = "top", title.hjust = 0,
-      title.theme = element_text(size = 10, family = "GillSans", hjust = 1),
-      ticks.colour = "black", ticks.linewidth = 0.35,
-      frame.colour = "black", frame.linewidth = 0.35,
-      label.theme = element_text(size = 10, family = "GillSans")
-    ))
 
 transratedf %>%
   distinct(Superfamily, hits) %>%
@@ -313,7 +267,7 @@ DF %>% dplyr::count(Superfamily, Assembler, sort = T) %>%
 
 transratedf %>%
   drop_na(hits) %>%
-  ggplot(aes(y = Assembler, x = reference_coverage, fill = after_stat(x))) +
+  ggplot(aes(y = Assembler, x = p_good, fill = after_stat(x))) +
   # geom_violin() +
   # facet_grid(~ Superfamily) +
   ggridges::geom_density_ridges_gradient(
