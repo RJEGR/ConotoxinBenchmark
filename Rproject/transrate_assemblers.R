@@ -47,23 +47,24 @@ transratedf <- do.call(rbind,transratedf)
 
 transratedf %>%  count(Assembler)
 
-transratedf %>% 
-  select_if(is.double) %>%
-  mutate_all(~replace(., is.na(.), 0)) %>%
-  cor(method = "spearman") -> M
+# transratedf %>% 
+#   select_if(is.double) %>%
+#   mutate_all(~replace(., is.na(.), 0)) %>%
+#   cor(method = "spearman") -> M
+#   
+#   
+# testRes <- corrplot::cor.mtest(M, conf.level = 0.95)
+# 
+# corrplot::corrplot(M, p.mat = testRes$p ,method = "color", type="upper", order = "hclust", insig = "label_sig")
+# 
+# transratedf %>%
+#   group_by(Assembler) %>% sample_frac(size = 0.05) %>% ungroup() %>%
+#   select_if(is.double) %>%
+#   mutate_all(~replace(., is.na(.), 0)) %>%
+#   # pairs(pch = 19, lower.panel = NULL)
+#   GGally::ggpairs()
   
-  
-testRes <- corrplot::cor.mtest(M, conf.level = 0.95)
-
-corrplot::corrplot(M, p.mat = testRes$p ,method = "color", type="upper", order = "hclust", insig = "label_sig")
-
-transratedf %>%
-  group_by(Assembler) %>% sample_frac(size = 0.05) %>% ungroup() %>%
-  select_if(is.double) %>%
-  mutate_all(~replace(., is.na(.), 0)) %>%
-  # pairs(pch = 19, lower.panel = NULL)
-  GGally::ggpairs()
-  
+transratedf %>% drop_na(hits) %>% count(Assembler)
 
 # Calculate metrics  -----
 
@@ -106,7 +107,7 @@ calculate_metrics <- function(transratedf, reference_coverage_val = 1) {
    dplyr::rename("rawcontigs" = "n")
   
  # True Positives (TP): Transcripts correctly assembled by the assembler. 
- ## TP = reference_cov == 1
+ ## TP = reference_cov >= reference_coverage_val
  
  TP <- transratedf %>%
     filter(reference_coverage >= reference_coverage_val) %>%
@@ -120,21 +121,23 @@ calculate_metrics <- function(transratedf, reference_coverage_val = 1) {
  ## FP = N contig_name where is.na(hits) == TRUE, AND|OR reference_cov < 1
  
  FP <- transratedf %>%
+   mutate(reference_coverage = ifelse(is.na(hits) & is.na(reference_coverage),
+     0,reference_coverage )) %>%
    filter(reference_coverage < reference_coverage_val) %>%
    # drop_na(hits) %>%
    count(Superfamily, Assembler) %>% 
    dplyr::rename("FP" = "n")
  
- FPnohit <- transratedf %>%
-   # filter(reference_coverage < 1) %>%
-   drop_na(hits) %>%
-   count(Superfamily, Assembler) %>% 
-   dplyr::rename("FPnohit" = "n")
+ # FPnohit <- transratedf %>%
+ #   # filter(reference_coverage < 1) %>%
+ #   drop_na(hits) %>%
+ #   count(Superfamily, Assembler) %>% 
+ #   dplyr::rename("FPnohit" = "n")
  
  Totaldf %>% 
    left_join(TP) %>% 
    left_join(FP) %>% 
-   left_join(FPnohit) %>%
+   # left_join(FPnohit) %>%
    mutate_all(~replace(., is.na(.), 0)) %>%
    left_join(calculate_false(.))
  
@@ -142,20 +145,35 @@ calculate_metrics <- function(transratedf, reference_coverage_val = 1) {
  
 }
 
-
-metricsdf <- calculate_metrics(transratedf, reference_coverage_val = 0.9) %>%
+metricsdf <- calculate_metrics(transratedf, reference_coverage_val = 0.9) %>% 
   mutate(
+    # RatioCI = TP/FP,
     # Sensitivity: The proportion of true transcripts that are correctly assembled. 
-    Sensitivity = TP / (TP + FP),
+    # Sensitivity = TP / (TP + FP), #<-- validate formula
+    Sensitivity = TP / (TP + FN),
     # Precision: The proportion of assembled transcripts that are actually true. 
-    Precision = TP /(TP + FN),
+    # Precision = TP /(TP + FN),  #<-- validate formula
+    Precision = TP /(TP + FP),
     # F1-score (aka Recall): A harmonic mean of precision and sensitivity, providing an overall measure of assembly quality. 
     
-    Recall = 2 * (Precision * Sensitivity) / (Precision + Sensitivity)
+    Recall = 2 * (Precision * Sensitivity) / (Precision + Sensitivity),  #<-- validate formula
+    # F1score = 2 * (TP) / (2 * (TP) + FP + FN) # <-- Recall and F1score formula is the same
     )
 
 
-plot_val <- "Recall" # Precision, Sensitivity
+# metricsdf %>%
+#   select_if(is.double) %>%
+#   mutate_all(~replace(., is.na(.), 0)) %>%
+#   cor(method = "spearman") -> M
+# 
+# 
+# testRes <- corrplot::cor.mtest(M, conf.level = 0.95)
+# 
+# corrplot::corrplot(M, p.mat = testRes$p ,method = "color", type="upper", order = "hclust", insig = "label_sig")
+
+
+
+plot_val <- "F1score" # Precision, Sensitivity
 
 # subtitle <- "Sensitivity: The proportion of true transcripts that are correctly assembled (TP / (TP + FP))"
 
@@ -201,7 +219,28 @@ metricsdf  %>%
     ))
 
 
+which_cols <- metricsdf %>% select_if(is.double) %>% names()
 
+which_cols <- c("InputNsequences", "rawcontigs", "TP","FP", "FN", 
+  "Sensitivity","Precision","Recall")  
+
+metricsdf %>%
+  pivot_longer(all_of(which_cols), names_to = "facet", values_to = "x") %>%
+  mutate(facet = factor(facet, levels = which_cols)) %>%
+  ggplot(aes(y = Superfamily, x = x)) +
+  facet_grid(~ facet, scales = "free_x") +
+  geom_boxplot() +
+  theme_bw(base_family = "GillSans", base_size = 12) +
+  theme(legend.position = "top",
+    panel.grid.minor.y = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    axis.text.y = element_text(size = 7),
+    # axis.text.x = element_text(angle = 0, hjust = 1, vjust = 1,size = 7),
+    strip.text = element_text(
+      angle = 0, hjust = 0,
+      size = 10))
 
 # In reference_coverage_val, try a loop to itinerate evaluation of recall
 
