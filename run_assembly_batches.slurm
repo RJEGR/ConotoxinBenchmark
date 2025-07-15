@@ -13,8 +13,8 @@ if [[ "$1" == "-h" ]]; then
     echo
     echo "Arguments:"
     echo "  Manifest: A text file containing sample information. The first column should contain sample names, and the second column should contain file paths."
+    echo "  Argument <Manifest> can be the wildcard pattern '*' to match multiple manifest files with .txt extension."
     echo "  Config:   A configuration file where each line specifies a tool and its command in the format 'tool=command'."
-    echo
     echo "Description:"
     echo "  This script performs meta-analysis by concatenating reads from the Manifest file, configuring tools from the Config file, and executing the specified commands."
     exit 0
@@ -25,89 +25,111 @@ CONFIG=$2
 
 if [[ -z "$Manifest" || -z "$CONFIG" ]]; then
     echo "Error: Missing required arguments."
-    echo "Run '$(basename $0) --help' for usage information."
+    echo "Run '$(basename $0) -h' for usage information."
     exit 1
 fi
 
-forward_fq=${Manifest%.*}_concat_PE1.fq
-reverse_fq=${Manifest%.*}_concat_PE2.fq
-
-call=`awk '{print $2}' $Manifest | tr "\n" " "`
-cat $call > $forward_fq
-
-call=`awk '{print $3}' $Manifest | tr "\n" " "`
-cat $call > $reverse_fq
-
-CPU=$SLURM_NPROCS
-MEM=$SLURM_MEM_PER_NODE
-
-
 chmod +x run_assemblers_dir/*sh
-
-FASTA_DIR="${Manifest%.*}_FASTA_DIR"
-
-mkdir -p $FASTA_DIR
-
-while read -r line; do 
-    # Skip lines starting with '#'
-    [[ "$line" =~ ^[[:space:]]*# ]] && continue
-    [[ -z "${line// }" ]] && continue
-
-    tool=$(echo $line | awk -F "=" '{print $1}')
-    
-    bs=${Manifest%.*}
-
-    call=$(echo $line | awk -F "=" '{print $2}') 
-
-    chkp_file="1_${tool}_${bs}.chkp"   
-   
-    if [ ! -f "$chkp_file" ]; then
-
-        OUTDIR=${bs}_${tool}_dir
-        
-        mkdir -p $OUTDIR
-
-        call=$(eval echo $call $forward_fq $reverse_fq  $OUTDIR $CPU $MEM)         
-
-        echo "Executing: $call"
-
-        eval $call
-
-        touch $chkp_file
-
-        rm -fr $OUTDIR
-
-    else
-        echo "${chkp_file} checkpoint already exists."
-    fi
-done < $CONFIG
-
-# Continue with the next steps: transrate
-
-REFDIR=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/reads_artificiales/inputs
-
-#Trinity/contigs.csv
 
 mkdir -p 2_transrate_dir
 
 chmod +x 2_transrate.sh
 
+run_assembly_batches() {
+    local manifest="$1"
+    local config="$2"
 
-find "$FASTA_DIR" -maxdepth 1 -type f -name '*.fa' | while read -r ASSEMBLER; do
+    local forward_fq="${manifest%.*}_concat_PE1.fq"
+    local reverse_fq="${manifest%.*}_concat_PE2.fq"
 
-    FAMILYPREFIX=$(basename ${FASTA_DIR%_FASTA_DIR})
-    REF=$REFDIR/${FAMILYPREFIX}.fasta
-    BSCONTIG=$(basename ${ASSEMBLER%.fa})
-    TRANSRATE_DIR=${BSCONTIG}_transrate_dir
-
-    call="./2_transrate.sh $forward_fq $reverse_fq $ASSEMBLER $REF $TRANSRATE_DIR"
-
-    #call="./2_transrate.sh $ASSEMBLER $REF $TRANSRATE_DIR"
+    # Concatenate forward reads
+    local call=$(awk '{print $2}' "$manifest" | tr "\n" " ")
     
+    #cat $call > "$forward_fq"
+
+    # Filter out empty entries before concatenation
+    for fq in $call; do [[ -n "$fq" ]] && echo "$fq"; done | xargs cat > "$forward_fq"
+
+    # Concatenate reverse reads
+    call=$(awk '{print $3}' "$manifest" | tr "\n" " ")
+    for fq in $call; do [[ -n "$fq" ]] && echo "$fq"; done | xargs cat > "$reverse_fq"
+    
+
+    local CPU=${SLURM_CPUS_ON_NODE}
+    local MEM=${SLURM_MEM_PER_NODE}
+
+    local FASTA_DIR="${manifest%.*}_FASTA_DIR"
+    
+    mkdir -p "$FASTA_DIR"
+
+    while read -r line; do 
+        # Skip comments and empty lines
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "${line// }" ]] && continue
+
+        local tool=$(echo "$line" | awk -F "=" '{print $1}')
+        local bs="${manifest%.*}"
+        local call=$(echo "$line" | awk -F "=" '{print $2}') 
+
+        local chkp_file="1_${tool}_${bs}.chkp" 
+
+        if [ ! -f "$chkp_file" ]; then
+        
+            local OUTDIR="${bs}_${tool}_dir"
+            
+            mkdir -p "$OUTDIR"
+
+            call=$(eval echo $call "$forward_fq" "$reverse_fq" "$OUTDIR" "$CPU" "$MEM")         
+
+            echo "Executing: $call"
+            
+            eval $call
+
+            touch "$chkp_file"
+
+            #rm -fr "$OUTDIR"
+
+
+        else
+            echo "${chkp_file} checkpoint already exists."
+        fi
+    done < "$config"
+
+     find "$FASTA_DIR" -maxdepth 1 -type f -name '*.fa' | while read -r ASSEMBLER; do
+        REFDIR=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/reads_artificiales/inputs
+        FAMILYPREFIX=$(basename "${FASTA_DIR%_FASTA_DIR}")
+        REF="$REFDIR/${FAMILYPREFIX}.fasta"
+        BSCONTIG=$(basename "${ASSEMBLER%.fa}")
+        TRANSRATE_DIR="${BSCONTIG}_transrate_dir"
+
+      
+        transrate_call="./2_transrate.sh $forward_fq $reverse_fq $ASSEMBLER $REF $TRANSRATE_DIR"
+        echo "Executing: $transrate_call"
+        #eval $transrate_call
+
+        done
+
+    if [[ -n "${manifest%.*}" ]]; then
+        #rm -f "${manifest%.*}_concat_PE"*.fq
+        echo "files to remove ${manifest%.*}"
+    else
+        echo "No concatenated files to remove."
+    fi
+}
+
+if [[ "$Manifest" == *"*"* ]]; then
+    echo "Running assembly batches for all manifests matching the pattern..."
+    
+    find "$PWD" -maxdepth 1 -type f -name '*.txt' | while read -r MANIFESTBATCH; do 
+         call="run_assembly_batches "$MANIFESTBATCH" "$CONFIG""
+         echo "Executing: $call"
+         eval $call
+    done
+else
+    call="run_assembly_batches "$Manifest" "$CONFIG""
+    echo "Executing: $call"
     eval $call
-done
-
-rm ${Manifest%.*}_concat_PE*.fq 
-
+   
+fi
 
 exit
