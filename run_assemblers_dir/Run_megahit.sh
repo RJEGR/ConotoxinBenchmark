@@ -14,6 +14,7 @@ which megahit
 
 # BinPacker -s fq -p pair -l reads.left.fq -r reads.right.fq
 
+rm -rf $OUTDIR
 
 call="megahit -1 $forward_fq -2 $reverse_fq -o $OUTDIR -t $CPU --presets meta-sensitive"
 
@@ -21,7 +22,7 @@ echo $call
 
 eval $call
 
-BS=`echo $OUTDIR | awk -F'_' '{print $1"_"$2}'`
+BS=`echo $(basename $OUTDIR) | awk -F'_' '{print $1"_"$2}'`
 
 # mv $OUTDIR/final.contigs.fa ${BS}_FASTA_DIR/${OUTDIR%_dir}.fa
 movecall="mv $OUTDIR/final.contigs.fa ${BS}_FASTA_DIR/${OUTDIR%_dir}.fa"
