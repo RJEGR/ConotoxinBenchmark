@@ -7,24 +7,37 @@
 
 # Check for --help flag
 
-if [[ "$1" == "--help" ]]; then
-    echo "Usage: $(basename $0) <Manifest> <Config>"
-    echo
-    echo "Arguments:"
-    echo "  Manifest: A text file containing sample information. The first column should contain sample names, and the second column should contain file paths."
-    echo "  Config:   A configuration file where each line specifies a tool and its command in the format 'tool=command'."
-    echo
-    echo "Description:"
-    echo "  This script performs meta-analysis by concatenating reads from the Manifest file, configuring tools from the Config file, and executing the specified commands."
-    exit 0
-fi
 
-Manifest=$1 
-CONFIG=$2 
+while getopts "s:c:h" opt; do
+    case $opt in
+        s) MANIFEST_FILE="$OPTARG";;
+        c) CONFIG_FILE="$OPTARG";;
+        h)
+            echo "Usage: $(basename $0) -s <Manifest> -c <Config>"
+            echo
+            echo "Arguments:"
+            echo "  -s <Manifest>: A text file containing sample information. The first column should contain sample names, and the second column should contain file paths."
+            echo "  -c <Config>:   A configuration file where each line specifies a tool and its command in the format 'tool=command'."
+            echo
+            echo "Description:"
+            echo "  This script performs meta-analysis by concatenating reads from the Manifest file, configuring tools from the Config file, and executing the specified commands."
+            exit 0
+            ;;
+        ?)
+            echo "Invalid option: -$OPTARG" >&2
+            echo "Run '$(basename $0) -h' for usage information."
+            exit 1
+            ;;
+    esac
+done
+shift $((OPTIND-1))
+
+Manifest=$MANIFEST_FILE 
+CONFIG=$CONFIG_FILE 
 
 if [[ -z "$Manifest" || -z "$CONFIG" ]]; then
-    echo "Error: Missing required arguments."
-    echo "Run '$(basename $0) --help' for usage information."
+    echo "Error: Missing required arguments. Both -s (Manifest) and -c (Config) are required."
+    echo "Run '$(basename $0) -h' for usage information."
     exit 1
 fi
 
