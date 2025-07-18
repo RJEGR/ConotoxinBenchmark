@@ -12,6 +12,7 @@ export PATH=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/Software/Bridg
 
 which Bridger.pl
 #--output/-o
+
 call="Bridger.pl --seqType fq --left $forward_fq --right $reverse_fq --output $OUTDIR --CPU $CPU"
 
 echo $call
