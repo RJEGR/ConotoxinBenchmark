@@ -15,6 +15,8 @@ ref=$4
 outdir=$5
 
 
+mkdir -p 2_transrate_dir
+
 call="transrate --left $forward_fq --right $reverse_fq --assembly $asm --reference $ref --output 2_transrate_dir/$outdir --threads 20"
 
 # call="transrate --assembly $asm --reference $ref --output 2_transrate_dir/$outdir --threads 20"
