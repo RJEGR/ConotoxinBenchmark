@@ -22,7 +22,7 @@ eval $call
 
 BS=`echo $(basename $OUTDIR) | awk -F'_' '{print $1"_"$2}'`
 
-movecall="mv $OUTDIR/BinPacker_Out_Dir/BinPacker.fa ${BS}_FASTA_DIR/${OUTDIR%_dir}.fa"
+movecall="mv $OUTDIR/BinPacker.fa ${BS}_FASTA_DIR/${OUTDIR%_dir}.fa"
 echo $movecall
 eval $movecall
 
