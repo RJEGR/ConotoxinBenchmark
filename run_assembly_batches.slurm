@@ -44,7 +44,6 @@ fi
 
 chmod +x run_assemblers_dir/*sh
 
-mkdir -p 2_transrate_dir
 
 chmod +x 2_transrate.sh
 
