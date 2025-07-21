@@ -22,18 +22,20 @@ library(tidyverse)
 
 dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_transrate_dir/2_transrate_dir/"
 
-subdirs <- list.files(dir, pattern = "_transrate_dir")
+str(subdirs <- list.files(dir, pattern = "_transrate_dir"))
 
 # Note: PLASS records are aminoacid sequences, therefore transrate results must be empty
 
 subdirs <- subdirs[!grepl("PLASS", subdirs)]
+subdirs <- subdirs[!grepl("PENGUIN", subdirs)]
 
 read_transrate_scores <- function(path) {
   
   basedir <- gsub("_transrate_dir","",path)
   
   Superfamily <- sapply(strsplit(basedir, "_"), `[`, 1)
-  Assembler <- gsub(paste0(Superfamily, "_superfamily[_|.]|all_superfamilies.fixed[_|.]"),"",basedir)
+  Assembler <- gsub(paste0(Superfamily, 
+    "_superfamily[_|.]|all_superfamilies.fixed[_|.]|Conopeptides_superfamilies[_|.]"),"",basedir)
   
   f <- list.files(file.path(dir,path, basedir), "contigs.csv", full.names = T)
   
@@ -173,7 +175,7 @@ metricsdf <- calculate_metrics(transratedf, reference_coverage_val = 0.9) %>%
 
 
 
-plot_val <- "F1score" # Precision, Sensitivity
+plot_val <- "Recall" # Precision, Sensitivity
 
 # subtitle <- "Sensitivity: The proportion of true transcripts that are correctly assembled (TP / (TP + FP))"
 
