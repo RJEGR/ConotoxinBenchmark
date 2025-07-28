@@ -28,6 +28,7 @@ str(subdirs <- list.files(dir, pattern = "_transrate_dir"))
 
 subdirs <- subdirs[!grepl("PLASS", subdirs)]
 subdirs <- subdirs[!grepl("PENGUIN", subdirs)]
+subdirs <- subdirs[!grepl("VELVET", subdirs)]
 
 read_transrate_scores <- function(path) {
   
@@ -37,11 +38,18 @@ read_transrate_scores <- function(path) {
   Assembler <- gsub(paste0(Superfamily, 
     "_superfamily[_|.]|all_superfamilies.fixed[_|.]|Conopeptides_superfamilies[_|.]"),"",basedir)
   
-  f <- list.files(file.path(dir,path, basedir), "contigs.csv", full.names = T)
+  
+    
+  # f <- list.files(file.path(dir,path, basedir), "contigs.csv", full.names = T)
+  
+  f <- list.files(list.dirs(file.path(dir,path), recursive = F), "contigs.csv", full.names = T)
+  
   
   read_csv(f) %>% mutate(Superfamily = Superfamily, Assembler = Assembler)
   
 }
+
+# read_transrate_scores(subdirs[2])
 
 transratedf <- lapply(subdirs, read_transrate_scores)
 
@@ -67,6 +75,27 @@ transratedf %>%  count(Assembler)
 #   GGally::ggpairs()
   
 transratedf %>% drop_na(hits) %>% count(Assembler)
+
+
+transratedf %>%
+  drop_na(hits) %>%
+  ggplot(aes(y = Assembler, x = p_good, fill = after_stat(x))) +
+  # geom_violin() +
+  # facet_grid(~ Superfamily) +
+  ggridges::geom_density_ridges_gradient(
+    jittered_points = T,
+    position = ggridges::position_points_jitter(width = 0.05, height = 0),
+    point_shape = '|', point_size = 3, point_alpha = 1, alpha = 1) +
+  scale_fill_viridis_c(option = "C") +
+  labs(y = "", x = "Reference coverage (TransRate)") +
+  theme_bw(base_family = "GillSans", base_size = 12) + 
+  theme(legend.position = "none", 
+    # axis.text.y = element_blank(), 
+    # axis.ticks.y = element_blank(), 
+    axis.title.x = element_text(size = 7)) +
+  scale_x_continuous(position = "top")
+
+
 
 # Calculate metrics  -----
 
@@ -147,7 +176,7 @@ calculate_metrics <- function(transratedf, reference_coverage_val = 1) {
  
 }
 
-metricsdf <- calculate_metrics(transratedf, reference_coverage_val = 0.9) %>% 
+metricsdf <- calculate_metrics(transratedf, reference_coverage_val = 0.7) %>% 
   mutate(
     # RatioCI = TP/FP,
     # Sensitivity: The proportion of true transcripts that are correctly assembled. 
@@ -223,8 +252,10 @@ metricsdf  %>%
 
 which_cols <- metricsdf %>% select_if(is.double) %>% names()
 
-which_cols <- c("InputNsequences", "rawcontigs", "TP","FP", "FN", 
-  "Sensitivity","Precision","Recall")  
+which_cols <- c(
+  # "TP","FP", "FN", 
+  # "Sensitivity","Precision",
+  "Recall")  
 
 metricsdf %>%
   pivot_longer(all_of(which_cols), names_to = "facet", values_to = "x") %>%
@@ -247,8 +278,6 @@ metricsdf %>%
 # In reference_coverage_val, try a loop to itinerate evaluation of recall
 
 
-
-
 reference_coverage_seq <- seq(0.1, 1, by = 0.1)
 
 metrics_list <- lapply(reference_coverage_seq, function(i) {
@@ -265,9 +294,10 @@ metricsdf <- bind_rows(metrics_list)
 
 metricsdf %>% 
   select(threshold, Recall, Assembler, Superfamily) %>%
-  ggplot(aes(x = threshold, y = Recall, color = Assembler)) +
-  facet_grid(~Assembler) +
-  geom_line(aes(group = Superfamily))
+  ggplot(aes(x = as.factor(threshold), y = Recall)) +
+  facet_grid(~Superfamily) +
+  geom_boxplot()
+  # geom_line(aes(group = Superfamily))
 
 
 
@@ -280,9 +310,17 @@ metricsdf %>%
   labs(x = "False positive rate (Precision)", 
     y = "True positive rate (Sensitivity)") +
   facet_wrap(~ Assembler) +
+  geom_point() +
   geom_line()
 
-
+metricsdf %>%
+  ggplot(aes(y = as.factor(threshold), x = Recall, fill = after_stat(x))) +
+  # facet_grid(~ Assembler) +
+  ggridges::geom_density_ridges_gradient(
+    jittered_points = T,
+    position = ggridges::position_points_jitter(width = 0.05, height = 0),
+    point_shape = '|', point_size = 3, point_alpha = 1, alpha = 1) +
+  scale_fill_viridis_c(option = "C")
 
 transratedf %>%
   distinct(Superfamily, hits) %>%
@@ -305,25 +343,6 @@ DF %>% dplyr::count(Superfamily, Assembler, sort = T) %>%
   ggplot(aes(y = Assembler, x = n)) +
   # facet_grid(~ Superfamily) +
   geom_col()
-
-transratedf %>%
-  drop_na(hits) %>%
-  ggplot(aes(y = Assembler, x = p_good, fill = after_stat(x))) +
-  # geom_violin() +
-  # facet_grid(~ Superfamily) +
-  ggridges::geom_density_ridges_gradient(
-    jittered_points = T,
-    position = ggridges::position_points_jitter(width = 0.05, height = 0),
-    point_shape = '|', point_size = 3, point_alpha = 1, alpha = 1) +
-  scale_fill_viridis_c(option = "C") +
-  labs(y = "", x = "Reference coverage (TransRate)") +
-  theme_bw(base_family = "GillSans", base_size = 12) + 
-  theme(legend.position = "none", 
-    # axis.text.y = element_blank(), 
-    # axis.ticks.y = element_blank(), 
-    axis.title.x = element_text(size = 7)) +
-  scale_x_continuous(position = "top")
-
 
 
 barpdf <- transratedf %>% 
