@@ -19,6 +19,11 @@ options(stringsAsFactors = FALSE, readr.show_col_types = FALSE)
 
 library(tidyverse)
 
+outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
+
+f <- list.files(path = outdir, pattern = "curated_nuc_conoServerDB.rds", full.names = T)
+
+conoServerDB <- read_rds(f)
 
 dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_transrate_dir/2_transrate_dir/"
 
@@ -76,7 +81,6 @@ transratedf %>%  count(Assembler)
   
 transratedf %>% drop_na(hits) %>% count(Assembler)
 
-
 transratedf %>%
   drop_na(hits) %>%
   ggplot(aes(y = Assembler, x = p_good, fill = after_stat(x))) +
@@ -88,6 +92,27 @@ transratedf %>%
     point_shape = '|', point_size = 3, point_alpha = 1, alpha = 1) +
   scale_fill_viridis_c(option = "C") +
   labs(y = "", x = "Reference coverage (TransRate)") +
+  theme_bw(base_family = "GillSans", base_size = 12) + 
+  theme(legend.position = "none", 
+    # axis.text.y = element_blank(), 
+    # axis.ticks.y = element_blank(), 
+    axis.title.x = element_text(size = 7)) +
+  scale_x_continuous(position = "top")
+
+
+transratedf %>%
+  drop_na(hits) %>%
+  ggplot(aes(y = reference_coverage, x = linguistic_complexity_6)) +
+  # geom_violin() +
+  facet_wrap(~ Superfamily) +
+  stat_smooth(method = "lm") +
+  geom_point()
+  ggridges::geom_density_ridges_gradient(
+    jittered_points = T,
+    position = ggridges::position_points_jitter(width = 0.05, height = 0),
+    point_shape = '|', point_size = 3, point_alpha = 1, alpha = 1) +
+  scale_fill_viridis_c(option = "C") +
+  # labs(y = "", x = "Reference coverage (TransRate)") +
   theme_bw(base_family = "GillSans", base_size = 12) + 
   theme(legend.position = "none", 
     # axis.text.y = element_blank(), 
@@ -260,7 +285,7 @@ which_cols <- c(
 metricsdf %>%
   pivot_longer(all_of(which_cols), names_to = "facet", values_to = "x") %>%
   mutate(facet = factor(facet, levels = which_cols)) %>%
-  ggplot(aes(y = Superfamily, x = x)) +
+  ggplot(aes(y = Assembler, x = x)) +
   facet_grid(~ facet, scales = "free_x") +
   geom_boxplot() +
   theme_bw(base_family = "GillSans", base_size = 12) +
@@ -295,7 +320,7 @@ metricsdf <- bind_rows(metrics_list)
 metricsdf %>% 
   select(threshold, Recall, Assembler, Superfamily) %>%
   ggplot(aes(x = as.factor(threshold), y = Recall)) +
-  facet_grid(~Superfamily) +
+  facet_grid(~Assembler) +
   geom_boxplot()
   # geom_line(aes(group = Superfamily))
 
@@ -315,7 +340,7 @@ metricsdf %>%
 
 metricsdf %>%
   ggplot(aes(y = as.factor(threshold), x = Recall, fill = after_stat(x))) +
-  # facet_grid(~ Assembler) +
+  facet_grid(~ Assembler) +
   ggridges::geom_density_ridges_gradient(
     jittered_points = T,
     position = ggridges::position_points_jitter(width = 0.05, height = 0),
