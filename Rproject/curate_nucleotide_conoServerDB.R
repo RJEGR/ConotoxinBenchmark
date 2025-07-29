@@ -127,13 +127,14 @@ extract_entry_info <- function(entry_node) {
 all_entry_data <- lapply(entries, extract_entry_info)
 
 
-# Example: print data for first entry
-
 data <- dplyr::bind_rows(all_entry_data) %>% as_tibble() %>% mutate(sequence = str_to_upper(sequence))
+
+data 
 
 # EDA -----
 
-data %>% drop_na(proteinsequence)
+data %>% 
+  # drop_na(proteinsequence)
   count(organismlatin, sort = T) %>%
   mutate(organismlatin = factor(organismlatin, levels = unique(organismlatin))) %>%
   ggplot(aes(y = organismlatin, x = n)) + geom_col()
@@ -150,14 +151,15 @@ data %>%
   mutate(genesuperfamily = factor(genesuperfamily, levels = unique(genesuperfamily))) %>%
   ggplot(aes(y = genesuperfamily, x = n)) + geom_col()
 
-data %>% 
-  count(organismlatin, genesuperfamily, sort = T) %>%
-  mutate(genesuperfamily = factor(genesuperfamily, levels = unique(genesuperfamily))) %>%
-  ggplot(aes(organismlatin, genesuperfamily, fill = n)) +
-  geom_tile(color = "white", linewidth = 0.5) +
-  theme_bw(base_family = "GillSans", base_size = 12) +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
+# data %>% 
+#   count(organismlatin, genesuperfamily, sort = T) %>%
+#   drop_na(genesuperfamily) %>%
+#   mutate(genesuperfamily = factor(genesuperfamily, levels = unique(genesuperfamily))) %>%
+#   ggplot(aes(organismlatin, genesuperfamily, fill = n)) +
+#   geom_tile(color = "white", linewidth = 0.5) +
+#   theme_bw(base_family = "GillSans", base_size = 12) +
+#   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
 
 # Filter and Split -----
 
@@ -175,6 +177,7 @@ nrow(Nodedf <- Nodedf %>% drop_na(proteinsequence) %>% filter(grepl("^M", protei
 nrow(Nodedf <- Nodedf %>% filter(nchar(sequence) >= 100))
 
 nrow(Nodedf %>% distinct(sequence))
+
 
 # Write fasta using a apply to write 
 
@@ -203,9 +206,41 @@ Nodedf %>%
   geom_tile(color = "white", linewidth = 0.5) +
   theme_bw(base_family = "GillSans", base_size = 14) +
   # scale_x_discrete(position = "top") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
 
 
+Nodedf %>% filter(is.na(organismdiet)) %>% count(organismlatin, sort = T)
+
+recode_to <- c("Conus flavidus" = "vermivorous", 
+  "Conus varius" = "vermivorous", 
+  "Conus terebra" = "vermivorous", 
+  "Conus sulcatus" = "molluscivorous",
+  "Conus adamsonii" = "piscivorous",
+  "Conus andremenezi" = "vermivorous",
+  "Conus araneosus" = "molluscivorous")
+
+Nodedf <- Nodedf %>% 
+  mutate(
+    organismdiet = ifelse(
+      organismlatin %in% names(recode_to),
+      recode_to[organismlatin],
+      organismdiet
+    )
+  ) 
+
+Nodedf %>%
+  count(organismdiet, split_as, sort = T) %>%
+  drop_na(split_as, organismdiet) %>%
+  mutate(split_as = factor(split_as, levels = unique(split_as))) %>%
+  ggplot(aes(y = organismdiet, x = split_as, fill = n)) +
+  geom_tile(color = "white", linewidth = 0.5) +
+  theme_bw(base_family = "GillSans", base_size = 14) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+
+
+file_out <- file.path(outdir, "curated_nuc_conoServerDB.rds")
+
+write_rds(Nodedf, file = file_out)
 
 # Split apart sf with less than 10 sequences and omiting NA sf
 
@@ -269,8 +304,48 @@ fasta_file <- file.path(outdir, paste0("UNDER_superfamily", ".fasta"))
 
 Biostrings::writeXStringSet(seqs, fasta_file)
 
-# q <- c("ATGCAGACGGCCTACTGGGTGATGGTGATGATGATGGTGTGGATTGCAGCCCCTCTGTCTGAAGGTGGTAAACTGAACGATGTAATTCGGGGTTTGGTGCCAGACGACATAACCCCACAGCTCATGTTGGGAAGTCTGATTTCCCGTCGTCAATCGGAAGAGGGTGGTTCAAATGCAACCAAGAAACCCTATATTCTAAGGGCCAGCGACCAGGTTGCATCTGGGCCATAG")
+# Output the AA sequences
 
-# dedup_DNAStringSet(seqs)[as.character(dedup_DNAStringSet(seqs)) %in% q]
+dedup_StringSet <- function(dnaset) {
+  seq_chars <- as.character(dnaset)
+  split_names <- split(names(dnaset), seq_chars)
+  unique_seqs <- Biostrings::AAStringSet(names(split_names))
+  names(unique_seqs) <- sapply(split_names, paste, collapse="|")
+  unique_seqs
+}
+
+# For each group, subset, format, and write FASTA
+for (group in well_represented) {
+
+  # Filter for the current group
+  tmp <- Nodedf %>%
+    filter(split_as == group) %>%
+    # unite("entry_id", entry_id:name, sep = "|") %>%
+    pull(proteinsequence, name = entry_id)
+  
+  # Make DNAStringSet
+  seqs <- Biostrings::AAStringSet(tmp)
+  
+  seqs <- dedup_StringSet(seqs)
+  
+  cat(length(seqs), "\n")
+  
+  # Write to FASTA, use group name in file
+  fasta_file <- file.path(outdir, paste0(group, ".pep"))
+  
+  Biostrings::writeXStringSet(seqs, fasta_file)
+}
+
+seqs <- Nodedf %>%
+  filter(split_as %in% less_represented) %>%
+  pull(proteinsequence, name = entry_id) %>%
+  Biostrings::AAStringSet() %>%
+  dedup_StringSet()
 
 
+# Write to FASTA, use group name in file
+fasta_file <- file.path(outdir, paste0("UNDER_superfamily", ".pep"))
+Biostrings::writeXStringSet(seqs, fasta_file)
+
+# Run orthofinder -S diamond -op -f peptide_dir. (peptide)
+# orthofinder -d -S diamond -op -f orthofinder_dir (dna)
