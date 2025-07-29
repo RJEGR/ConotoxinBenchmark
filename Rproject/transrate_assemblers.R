@@ -1,4 +1,7 @@
 
+
+# BKP version
+
 # Read transrate scores (to evals accuracy of assembly methods)
 
 # True Positives (TP): Transcripts correctly assembled by the assembler. 
@@ -62,12 +65,12 @@ transratedf <- do.call(rbind,transratedf)
 
 transratedf %>%  count(Assembler)
 
-# transratedf %>% 
+# transratedf %>%
 #   select_if(is.double) %>%
 #   mutate_all(~replace(., is.na(.), 0)) %>%
 #   cor(method = "spearman") -> M
-#   
-#   
+# 
+# 
 # testRes <- corrplot::cor.mtest(M, conf.level = 0.95)
 # 
 # corrplot::corrplot(M, p.mat = testRes$p ,method = "color", type="upper", order = "hclust", insig = "label_sig")
