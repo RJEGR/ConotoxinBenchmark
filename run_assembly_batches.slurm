@@ -7,7 +7,6 @@
 #SBATCH -o out.%J
 #SBATCH -e err.%J
 
-
 while getopts "s:c:h" opt; do
     case $opt in
         s) MANIFEST_FILE="$OPTARG";;
@@ -16,7 +15,7 @@ while getopts "s:c:h" opt; do
             echo "Usage: $(basename $0) -s <Manifest> -c <Config>"
             echo
             echo "Arguments:"
-            echo "  -s <Manifest>: A text file containing sample information. The first column should contain sample names, and the second column should contain file paths."
+            echo "  -s <Manifest>: A text file containing sample information. The first column should contain sample names, and the second column should contain file paths." Option -s all, allow to run assembly batches for all manifests matching the pattern *.txt.
             echo "  -c <Config>:   A configuration file where each line specifies a tool and its command in the format 'tool=command'."
             echo
             echo "Description:"
@@ -44,8 +43,9 @@ fi
 
 chmod +x run_assemblers_dir/*sh
 
-
-chmod +x 2_transrate.sh
+# set environment variables
+EXPORT=$PWD/run_assemblers_dir
+export PATH=$PATH:$EXPORT
 
 run_assembly_batches() {
     local manifest="$1"
@@ -76,6 +76,8 @@ run_assembly_batches() {
     echo $mkdircall
     eval $mkdircall
 
+    mkdir -p chkp_dir
+
     while read -r line; do 
         # Skip comments and empty lines
         [[ "$line" =~ ^[[:space:]]*# ]] && continue
@@ -87,7 +89,7 @@ run_assembly_batches() {
 
         local chkp_file="1_${tool}_${bs}.chkp" 
 
-        if [ ! -f "$chkp_file" ]; then
+        if [ ! -f chkp_dir/"$chkp_file" ]; then
         
             local OUTDIR="${bs}_${tool}_dir"
             
@@ -99,10 +101,28 @@ run_assembly_batches() {
             
             eval $call
 
-            touch "$chkp_file"
+            # write a chunk of code to check if any fasta file was creates in $OUTDIR, if true, touch "$chkp_file", else echo "No fasta file created in $OUTDIR, skipping checkpoint creation."
+            if ls "$FASTA_DIR"/${OUTDIR%_dir}.fa 1> /dev/null 2>&1; then
+                
+                echo "Fasta file created in $OUTDIR, creating checkpoint."
 
-            rm -fr "$OUTDIR"
+                touch chkp_dir/"$chkp_file"
+                
+                rm -fr "$OUTDIR"
+            else
+                echo "No fasta file created in $OUTDIR, skipping checkpoint creation."
+                echo "Saving outputs in issues_dir directory for further investigation."
+                mkdir -p issues_dir
+                mv "$OUTDIR" issues_dir
+                continue
+            fi
 
+
+            #touch "$chkp_file"
+
+            # rm -fr "$OUTDIR"
+
+            
 
         else
             echo "${chkp_file} checkpoint already exists."
@@ -117,7 +137,7 @@ run_assembly_batches() {
         TRANSRATE_DIR="${BSCONTIG}_transrate_dir"
 
       
-        transrate_call="./2_transrate.sh $forward_fq $reverse_fq $ASSEMBLER $REF $TRANSRATE_DIR"
+        transrate_call="Run_transrate.sh $forward_fq $reverse_fq $ASSEMBLER $REF $TRANSRATE_DIR"
         echo "Executing: $transrate_call"
         eval $transrate_call
 
@@ -146,5 +166,8 @@ else
     eval $call
    
 fi
+
+
+
 
 exit
