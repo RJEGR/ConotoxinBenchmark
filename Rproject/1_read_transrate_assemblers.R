@@ -34,9 +34,9 @@ outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
 
 f <- list.files(path = outdir, pattern = "curated_nuc_conoServerDB.rds", full.names = T)
 
-conoServerDB <- read_rds(f) %>% rename("hits" = "entry_id")
+conoServerDB <- read_rds(f) %>% dplyr::rename("hits" = "entry_id")
 
-dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_transrate_dir/2_transrate_dir/"
+dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_transrate_dir/2_transrate_contigs_dir"
 
 str(subdirs <- list.files(dir, pattern = "_transrate_dir"))
 
