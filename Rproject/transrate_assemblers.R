@@ -28,7 +28,7 @@ f <- list.files(path = outdir, pattern = "curated_nuc_conoServerDB.rds", full.na
 
 conoServerDB <- read_rds(f)
 
-dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_transrate_dir/2_transrate_dir/"
+dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_transrate_dir/2_transrate_contigs_dir/"
 
 str(subdirs <- list.files(dir, pattern = "_transrate_dir"))
 
@@ -38,13 +38,23 @@ subdirs <- subdirs[!grepl("PLASS", subdirs)]
 subdirs <- subdirs[!grepl("PENGUIN", subdirs)]
 subdirs <- subdirs[!grepl("VELVET", subdirs)]
 
+subdirs[grepl("all", subdirs)]
+subdirs[grepl("SOAP", subdirs)]
+
 read_transrate_scores <- function(path) {
   
   basedir <- gsub("_transrate_dir","",path)
   
   Superfamily <- sapply(strsplit(basedir, "_"), `[`, 1)
-  Assembler <- gsub(paste0(Superfamily, 
-    "_superfamily[_|.]|all_superfamilies.fixed[_|.]|Conopeptides_superfamilies[_|.]"),"",basedir)
+  
+  # Assembler <- gsub(paste0(Superfamily, 
+  #   "_superfamily[_|.]|all_superfamilies.fixed[_|.]|Conopeptides_superfamilies[_|.]"),"",basedir)
+  
+  # Assembler <- gsub(paste0(Superfamily, 
+  #   "_superfamily[_|.]|all_superfamily[_|.]|Conopeptides_superfamily[_|.]"),"",basedir)
+  
+  Assembler <- sapply(strsplit(basedir, "_"), `[`, 3)
+  
   
   
     
@@ -85,7 +95,7 @@ transratedf %>%  count(Assembler)
 transratedf %>% drop_na(hits) %>% count(Assembler)
 
 transratedf %>%
-  drop_na(hits) %>%
+  # drop_na(hits) %>%
   ggplot(aes(y = Assembler, x = p_good, fill = after_stat(x))) +
   # geom_violin() +
   # facet_grid(~ Superfamily) +
