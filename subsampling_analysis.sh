@@ -1,32 +1,26 @@
 #!/bin/bash
 
-#SBATCH --job-name=subsampling_analysis
-#SBATCH -N 1
-#SBATCH --mem=120GB
-#SBATCH --ntasks-per-node=24
-#SBATCH -t 6-00:00:00
-#SBATCH -o out.%J
-#SBATCH -e err.%J
-
 export PATH=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/Software:$PATH
 
 
 EXPORT=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/1_assembly_dir/RUN_ARTIFICIAL_PIPELINE_DIR/run_assemblers_dir
 export PATH=$PATH:$EXPORT
 
-while getopts "s:h" opt; do
+# Add -o flag for output directory, with default as md5sum of manifest+Prop
+
+while getopts "s:o:h" opt; do
     case $opt in
         s) MANIFEST_FILE="$OPTARG";;
-        #p) SAMPLE_FRAC="$OPTARG";;
+        o) OUTPUT_DIR="$OPTARG";;
         h)
-            echo "Usage: $(basename $0) -s <Manifest> -p <sample fraction [0.1 - 1]>"
+            echo "Usage: $(basename $0) -s <Manifest> [-o <OutputDir>]"
             echo
             echo "Arguments:"
-            echo "  -s <Manifest>: A text file containing sample information." Option -s all, allow to run assembly batches for all manifests matching the pattern *.txt.
-            #echo "  -p <sample fraction>:  fraction of sample."
+            echo "  -s <Manifest>: A text file containing sample information. Option -s all, allow to run assembly batches for all manifests matching the pattern *.txt."
+            echo "  -o <OutputDir>: Directory to save all outputs. If not provided, a default folder will be created using md5sum of manifest and proportion."
             echo
             echo "Description:"
-            echo "  This script performs subsampling of reads from a given Manifest file. by concatenating reads from the Manifest file, and executing the specified commands."
+            echo "  This script performs subsampling of reads from a given Manifest file by concatenating reads from the Manifest file, and executing the specified commands."
             exit 0
             ;;
         ?)
@@ -38,107 +32,125 @@ while getopts "s:h" opt; do
 done
 
 shift $((OPTIND-1))
+Manifest=$MANIFEST_FILE
 
-Manifest=$MANIFEST_FILE 
-#Prop=$SAMPLE_FRAC 
-
-#if [[ -z "$Manifest" || -z "$SAMPLE_FRAC" ]]; then
 if [[ -z "$Manifest" ]]; then
     echo "Error: Missing required arguments."
     echo "Run '$(basename $0) -h' for usage information."
     exit 1
 fi
 
+run_trinity() {
+    module load trinityrnaseq-v2.15.1
+    local forward_fq="$1"
+    local reverse_fq="$2"
+    local output="$3"
+
+    call="Trinity --seqType fq --max_memory 100G --left $forward_fq --right $reverse_fq --no_normalize_reads --CPU 24 --output ${output}/Trinity_out_dir --full_cleanup"
+    
+    echo $call
+    
+    eval $call
+
+
+  # rm ${output}/Trinity_out_dir/Trinity_out_dir.Trinity.fasta.gene_trans_map*.fasta.gene_trans_map
+}
+
 run_assembly() {
-
-    #local CPU=${SLURM_CPUS_ON_NODE}
-    #local MEM=${SLURM_MEM_PER_NODE}
-
     local manifest="$1"
     local Prop="$2"
+    local outdir_flag="$3"
 
+    # If output dir not provided, use md5sum of manifest+Prop
+    if [[ -z "$outdir_flag" ]]; then
+        # local random_string="${manifest}_${Prop}"
+        local random_string="${manifest}_$(date +%d%m%y)" 
+        md5sum=$(echo -n "$random_string" | md5sum | awk '{print $1}')
+        outdir_flag="${md5sum}_dir"
+        # outdir="$(echo -n "$random_string" | md5sum | awk '{print $1"_dir"}')"
+    fi
+
+    echo "Using output directory: $outdir_flag, and $manifest, and $Prop"
+    
     local bs=$(basename "${manifest%.*}")
 
-    local OUTDIR="${bs}_${Prop}_dir"
+    local OUTDIR="${outdir_flag}/${bs}_${Prop}_dir"
             
     mkdir -p "$OUTDIR"
 
-    local FASTA_DIR="${manifest%.*}_FASTA_DIR"
+    local FASTA_DIR="${outdir_flag}/${manifest%.*}_FASTA_DIR"
 
     mkdircall="mkdir -p "$FASTA_DIR""
     
     echo $mkdircall
     eval $mkdircall
 
-    local forward_fq="${manifest%.*}_concat_PE1.fq"
-    local reverse_fq="${manifest%.*}_concat_PE2.fq"
+    local forward_fq="${OUTDIR}/${bs}_concat_PE1.fq"
+    local reverse_fq="${OUTDIR}/${bs}_concat_PE2.fq"
 
     # Concatenate forward reads
     local call=$(awk '{print $2}' "$manifest" | tr "\n" " ")
-    
-
-    # Filter out empty entries before concatenation
     for fq in $call; do [[ -n "$fq" ]] && echo "$fq"; done | xargs cat > "$forward_fq"
 
     # Concatenate reverse reads
     call=$(awk '{print $3}' "$manifest" | tr "\n" " ")
     for fq in $call; do [[ -n "$fq" ]] && echo "$fq"; done | xargs cat > "$reverse_fq"
 
-    local forward_sampled_fq="${forward_fq%.fq}_${Prop}_sampled.fq"
-    local reverse_sampled_fq="${reverse_fq%.fq}_${Prop}_sampled.fq"
+    local forward_sampled_fq="${OUTDIR}/${bs}_${Prop}_sampled_PE1.fq"
+    local reverse_sampled_fq="${OUTDIR}/${bs}_${Prop}_sampled_PE2.fq"
 
-
-
-    # Using the same seed ensures SeqKit selects the same corresponding records based on sequence order and IDs. 
-    # This keeps paired-end reads in sync. (it working!!)
-   
-   
     seqkit sample --proportion $Prop --rand-seed 123 -o $forward_sampled_fq $forward_fq
     seqkit sample --proportion $Prop --rand-seed 123 -o $reverse_sampled_fq $reverse_fq
 
-    call="Run_trinity.sh $forward_sampled_fq $reverse_sampled_fq $OUTDIR 20 100"
+    #call="Run_trinity.sh $forward_sampled_fq $reverse_sampled_fq $OUTDIR 20 100"
 
-    echo $call
+    call="run_trinity $forward_sampled_fq $reverse_sampled_fq $OUTDIR"
     
     eval $call
+
+    f1=$(find ${OUTDIR} -type f -name '*fasta')
+
+    #f2=$(find ${outdir_flag} -type d -name '*FASTA_DIR')
+
+    BS=$(basename "${FASTA_DIR%_FASTA_DIR}")
+   
+    movecall="mv $f1 $FASTA_DIR/${Prop}.fa"
+   
+    echo "moving file $f1"
+
+    echo $movecall
+   
+    eval $movecall
 
     find "$FASTA_DIR" -maxdepth 1 -type f -name '*.fa' | while read -r ASSEMBLER; do
         REFDIR=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/reads_artificiales/inputs
         FAMILYPREFIX=$(basename "${FASTA_DIR%_FASTA_DIR}")
         REF="$REFDIR/${FAMILYPREFIX}.fasta"
         BSCONTIG=$(basename "${ASSEMBLER%.fa}")
-        TRANSRATE_DIR="${BSCONTIG}_transrate_dir"
+        TRANSRATE_DIR="${OUTDIR}/${BSCONTIG}_transrate_dir"
 
-      
         transrate_call="Run_transrate.sh $forward_sampled_fq $reverse_sampled_fq $ASSEMBLER $REF $TRANSRATE_DIR"
         echo "Executing: $transrate_call"
         eval $transrate_call
+    done
 
-        done
-
-    if [[ -n "${manifest%.*}" ]]; then
-        rm -f "${manifest%.*}_concat_PE"*.fq
-        echo "files to remove ${manifest%.*}"
-        
+    if [[ -n "${OUTDIR}" ]]; then
+        rm -f "${OUTDIR}/${bs}_concat_PE"*.fq
+        echo "files to remove ${OUTDIR}/${bs}_concat_PE*.fq"
     else
         echo "No concatenated files to remove."
     fi
-
-    rm -fr "$OUTDIR"
 
 }
 
 make_subsamples() {
     local manifest="$1"
-    for P in $(seq 0.1 0.1 1.0); do
-        call="run_assembly \"$manifest\" \"$P\""
-        #echo $call
-        eval $call
+    for P in $(seq 0.1 0.1 1); do
+        run_assembly "$manifest" "$P" "$OUTPUT_DIR"
     done
 }
 
-# run_seqkit $Manifest $Prop
-
+ 
 if [[ "$Manifest" == "all" ]]; then
     echo "Running assembly for all manifests matching the pattern..."
     
@@ -153,6 +165,6 @@ else
    
 fi
 
+exit
 
-# run trinity (or other tool)
 
