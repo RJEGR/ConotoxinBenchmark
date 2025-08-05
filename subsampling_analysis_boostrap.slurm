@@ -9,7 +9,19 @@
 
 manifest="$1"
 
-for i in {1..10}; do
+# Split boostraping proportion
+
+for i in $(seq 1 4); do
+    echo "running round ${i}"
+    ./subsampling_analysis.sh -s $manifest -o boostrap_dir_${i}
+done
+
+for i in $(seq 5 8); do
+    echo "running round ${i}"
+    ./subsampling_analysis.sh -s $manifest -o boostrap_dir_${i}
+done
+
+for i in $(seq 9 12); do
     echo "running round ${i}"
     ./subsampling_analysis.sh -s $manifest -o boostrap_dir_${i}
 done
