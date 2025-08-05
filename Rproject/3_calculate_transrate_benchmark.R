@@ -65,7 +65,6 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
   
   TP <- df %>%
     filter(reference_coverage >= reference_coverage_val) %>%
-    drop_na(hits) %>%
     # Use distinct to trim redundancy
     distinct(hits, Superfamily, Assembler) %>%
     count(Superfamily, Assembler) %>% 
