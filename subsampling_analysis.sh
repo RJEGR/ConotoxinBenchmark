@@ -122,17 +122,6 @@ run_assembly() {
    
     eval $movecall
 
-    find "$FASTA_DIR" -maxdepth 1 -type f -name '*.fa' | while read -r ASSEMBLER; do
-        REFDIR=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/reads_artificiales/inputs
-        FAMILYPREFIX=$(basename "${FASTA_DIR%_FASTA_DIR}")
-        REF="$REFDIR/${FAMILYPREFIX}.fasta"
-        BSCONTIG=$(basename "${ASSEMBLER%.fa}")
-        TRANSRATE_DIR="${OUTDIR}/${BSCONTIG}_transrate_dir"
-
-        transrate_call="Run_transrate.sh $forward_sampled_fq $reverse_sampled_fq $ASSEMBLER $REF $TRANSRATE_DIR"
-        echo "Executing: $transrate_call"
-        eval $transrate_call
-    done
 
     if [[ -n "${OUTDIR}" ]]; then
         rm -f "${OUTDIR}/${bs}_concat_PE"*.fq
@@ -164,6 +153,62 @@ else
     make_subsamples "$Manifest"
    
 fi
+
+# Proccess the FASTA files with transrate
+
+
+run_transrate() {
+    
+    REFDIR=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/reads_artificiales/inputs
+
+    mkdir -p transrate_tmp_dir
+    
+    find  find */*_FASTA_DIR -maxdepth 1 -type f -name "*.fa" | while read -r asm; do
+        
+        echo "Processing FASTA : $asm"
+
+        # Substring to extract the sf prefix
+
+        FAMILYPREFIX=$(echo $asm | awk -F'/' '{for(i=1;i<=NF;i++) if($i ~ /_FASTA_DIR/) print $i}')
+
+        FAMILYPREFIX="all_superfamily"
+
+        echo ${FAMILYPREFIX%_FASTA_DIR}
+
+        ref=$REFDIR/${FAMILYPREFIX%_FASTA_DIR}.fasta
+        
+        #TRANSRATE_DIR=$(dirname "$asm")
+        
+        TRANSRATE_DIR=${asm%.fa}_dir
+
+        call="transrate --assembly $asm --reference $ref --output transrate_tmp_dir/$TRANSRATE_DIR --threads 20"
+
+        echo "Executing: $call"
+
+        eval $call
+
+        echo "Finished processing FASTA : $asm"
+    
+    done
+
+
+
+}
+
+run_transrate
+
+
+mkdir -p transrate_contigs_dir
+
+find transrate_tmp_dir -name 'contigs.csv' -exec bash -c '
+        for src; do
+              dst="transrate_contigs_dir/${src#transrate_tmp_dir}"
+              echo $dst
+              mkdir -p "$(dirname "$dst")"
+              cp "$src" "$dst"
+
+        done
+' bash {} +
 
 exit
 
