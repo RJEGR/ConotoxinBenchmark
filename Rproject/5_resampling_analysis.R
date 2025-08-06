@@ -36,10 +36,7 @@ read_transrate_scores <- function(file_list) {
 calculate_metrics <- function(df, reference_coverage_val = 1) {
   
   calculate_false <- function(df) {
-    
-    # False Negatives (FN): Transcripts present in the simulated data but not assembled. 
-    ## TP - (N reference sequences in InputNsequences) 
-    
+
     InputNsequences <- c(
       all=1835,
       A=251,
@@ -61,43 +58,64 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
       `T`=215,
       UNDER=78)
     
+    
+    # False Negatives (FN): Transcripts present in the simulated data but not assembled. 
+    ## TP - (N reference sequences in InputNsequences) 
+    
+    
     data.frame(InputNsequences) %>% 
       as_tibble(rownames = "Superfamily") %>% 
-      left_join(df) %>%
+      right_join(df) %>%
       mutate(FN = abs(InputNsequences - TP))
     
   }
   
+
   Totaldf <- df %>% 
-    count(subdir1, subdir2, Superfamily)  %>% 
+    dplyr::count(subdir1, subdir2, Superfamily)  %>% 
     dplyr::rename("rawcontigs" = "n")
   
   # True Positives (TP): Transcripts correctly assembled by the assembler. 
-  ## TP = reference_cov >= reference_coverage_val ||reference_cov == 1 (= hits)
+  ## TP = reference_cov >= reference_coverage_val ||reference_cov == 1 (= !is.na(hits))
   
   TP <- df %>%
     filter(reference_coverage >= reference_coverage_val) %>%
-    # Use distinct to trim redundancy between contigs
-    distinct(hits, Superfamily, subdir1, subdir2) %>%
-    count(Superfamily, subdir1, subdir2) %>% 
+    # Use distinct to trim redundancy between contig hits
+    # distinct(hits, Superfamily, subdir1, subdir2) %>%
+    dplyr::count(Superfamily, subdir1, subdir2) %>% 
     dplyr::rename("TP" = "n")
   
   # False Positives (FP): Transcripts incorrectly assembled by the assembler.
-  ## FP = N contig_name where is.na(hits) == TRUE, AND|OR reference_cov < 1
+  ## FP = N contig_name where reference_cov < 1 BUT have some identity threshold (reference_coverage > 0)
   
   FP <- df %>%
-    mutate(reference_coverage = ifelse(is.na(hits) & is.na(reference_coverage), 0,reference_coverage )) %>%
-    filter(reference_coverage < reference_coverage_val) %>%
-    count(Superfamily, subdir1, subdir2) %>% 
+    mutate(reference_coverage = ifelse(is.na(hits) & is.na(reference_coverage), 0, reference_coverage )) %>%
+    filter(reference_coverage > 0 &  reference_coverage < reference_coverage_val)  %>%
+    dplyr::count(Superfamily, subdir1, subdir2) %>% 
     dplyr::rename("FP" = "n")
+  
+
+  # Dealing with Overestimate contig number
+  # contigs where reference_coverage == 0, OR
+  # Use Rawcontigs number minus TP + FP to count potential True Negative (TN)
+  #     mutate(TN = rawcontigs - (TP+FP)) %>%
+  
+  TN <- df %>%
+    mutate(reference_coverage = ifelse(is.na(hits) & is.na(reference_coverage), 0, reference_coverage )) %>%
+    # mutate_all(~replace(., is.na(.), 0)) %>%
+    filter(reference_coverage == 0) %>%
+    # filter(is.na(hits)) %>%
+    dplyr::count(Superfamily, subdir1, subdir2) %>%
+    dplyr::rename("TN" = "n")
+  
   
   Totaldf %>% 
     left_join(TP) %>% 
+    left_join(TN) %>% 
     left_join(FP) %>% 
-    # left_join(FPnohit) %>%
     mutate_all(~replace(., is.na(.), 0)) %>%
-    left_join(calculate_false(.))
-  
+    left_join(calculate_false(.)) %>%
+    select(-InputNsequences) 
   
   
 }
@@ -117,6 +135,9 @@ dir <- "~/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir/transrate_contig
 dir <- dirname(dir)
 
 str(file_list <- list.files(path = dir, pattern = "contigs.csv", recursive = T, full.names = TRUE))
+
+
+file_list <- file_list[grepl("M_superfamily",file_list)]
 
 # tibble(path = file_list) 
 
@@ -150,43 +171,44 @@ transratedf <- transratedf %>%
   mutate(hits = sapply(strsplit(hits, "_"), `[`, 1)) 
 
 
-transratedf %>%  count(subdir1, subdir2, Superfamily)
+transratedf %>% dplyr::count(subdir1, subdir2, Superfamily)
 
 # transratedf %>% distinct(hits) 
 
 # Merge with conoServerDB
 
-true_contigs_db <- transratedf %>% filter(!is.na(hits)) 
 
-true_contigs_db %>% distinct(hits) %>% nrow()
+transratedf %>% distinct(hits) %>% nrow()
 
 # all_contigs_db <- transratedf %>% filter(is.na(hits)) 
 
-sum(sort(conoServerDB$hits) %in% sort(unique(true_contigs_db$hits))) 
+sum(sort(conoServerDB$hits) %in% sort(unique(transratedf$hits))) 
 
 # Use right_join to record the reference sequence where assemblers does not support assembly
 
-true_contigs_db <- true_contigs_db %>% 
+transratedf <- transratedf %>% 
   # select(contig_name, linguistic_complexity_6, reference_coverage, hits, p_good)
   right_join(conoServerDB,by = "hits")
 
 # Recall test
 
 
-metricsdf <- calculate_metrics(true_contigs_db, reference_coverage_val = 1) %>% 
+metricsdf <- calculate_metrics(transratedf, reference_coverage_val = ) %>% 
   mutate(
-    Sensitivity = TP / (TP + FN),
+    Ratio = TP/FP,
+    Accuracy = TP / (TP + FN + FP),
     Precision = TP /(TP + FP),
-    Recall = 2 * (Precision * Sensitivity) / (Precision + Sensitivity), 
+    Recall = TP /(TP + FN),
+    Fscore = 2 * (TP) / (2 * (TP) + FP + FN), 
   )
 
 
 metricsdf %>%
   drop_na() %>%
-  ggplot(aes(y = Recall, x = as.factor(subdir2))) +
+  ggplot(aes(y = Fscore, x = as.factor(subdir2))) +
   # geom_boxplot() +
   facet_grid(~ Superfamily) +
-  geom_jitter(position = position_jitter(0.2), shape = 1) +
+  geom_jitter(position = position_jitter(0.1), shape = 1) +
   stat_summary(fun = "mean", geom = "line", aes(group = 1), color="red") +
   stat_summary(fun.data=mean_sdl, geom="pointrange", color="red") +
   labs(x = "Subsampling") +
@@ -201,11 +223,11 @@ metricsdf %>%
 # What is the number of representants per subsampling?
 # Split by genesuperfamily
 
-true_contigs_db %>%
-  count(subdir1, subdir2, genesuperfamily) %>%
+transratedf %>%
+  dplyr::count(subdir1, subdir2, genesuperfamily) %>%
   drop_na() %>%
-  ggplot(aes(y = n, x = genesuperfamily)) +
-  facet_grid(subdir2 ~.) + geom_boxplot() +
+  ggplot(aes(y = n, x = as.factor(subdir2))) +
+  facet_grid(genesuperfamily ~.) + geom_boxplot() +
   theme_bw(base_family = "GillSans", base_size = 12) +
   theme(legend.position = "top",
     panel.grid.minor.y = element_blank(),
@@ -216,8 +238,8 @@ true_contigs_db %>%
     axis.text.x = element_text(angle = 90, hjust = 1, vjust = 1,size = 7))
   
 
-true_contigs_db %>%
-  count(subdir1, subdir2, genesuperfamily) %>%
+transratedf %>%
+  dplyr::count(subdir1, subdir2, genesuperfamily) %>%
   drop_na() %>%
   ggplot(aes(y = n, x = as.factor(subdir2))) +
   facet_wrap( ~genesuperfamily, scales = "free_y") +
