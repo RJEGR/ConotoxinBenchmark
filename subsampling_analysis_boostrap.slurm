@@ -26,4 +26,6 @@ for i in $(seq 9 12); do
     ./subsampling_analysis.sh -s $manifest -o boostrap_dir_${i}
 done
 
+# ./rerun_transrate.slurm
+
 exit
