@@ -96,6 +96,7 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
   
 
   # Dealing with Overestimate contig number
+  # No hay manera de usar estos como TN,
   # contigs where reference_coverage == 0, OR
   # Use Rawcontigs number minus TP + FP to count potential True Negative (TN)
   #     mutate(TN = rawcontigs - (TP+FP)) %>%
@@ -130,14 +131,14 @@ conoServerDB <- read_rds(f) %>% dplyr::rename("hits" = "entry_id")
 
 # Reading data from 2_subsampling_dir
 
-dir <- "~/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir/transrate_contigs_dir/"
+dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir/transrate_contigs_dir/"
 
 dir <- dirname(dir)
 
 str(file_list <- list.files(path = dir, pattern = "contigs.csv", recursive = T, full.names = TRUE))
 
 
-file_list <- file_list[grepl("M_superfamily",file_list)]
+# file_list <- file_list[grepl("M_superfamily",file_list)]
 
 # tibble(path = file_list) 
 
@@ -186,14 +187,14 @@ sum(sort(conoServerDB$hits) %in% sort(unique(transratedf$hits)))
 
 # Use right_join to record the reference sequence where assemblers does not support assembly
 
-transratedf <- transratedf %>% 
+# transratedf <- transratedf %>% 
   # select(contig_name, linguistic_complexity_6, reference_coverage, hits, p_good)
-  right_join(conoServerDB,by = "hits")
+  # right_join(conoServerDB,by = "hits")
 
 # Recall test
 
 
-metricsdf <- calculate_metrics(transratedf, reference_coverage_val = ) %>% 
+metricsdf <- calculate_metrics(transratedf, reference_coverage_val = 1) %>% 
   mutate(
     Ratio = TP/FP,
     Accuracy = TP / (TP + FN + FP),
@@ -207,7 +208,7 @@ metricsdf %>%
   drop_na() %>%
   ggplot(aes(y = Fscore, x = as.factor(subdir2))) +
   # geom_boxplot() +
-  facet_grid(~ Superfamily) +
+  facet_grid(Superfamily ~., scales = "free_y") +
   geom_jitter(position = position_jitter(0.1), shape = 1) +
   stat_summary(fun = "mean", geom = "line", aes(group = 1), color="red") +
   stat_summary(fun.data=mean_sdl, geom="pointrange", color="red") +
@@ -244,3 +245,25 @@ transratedf %>%
   ggplot(aes(y = n, x = as.factor(subdir2))) +
   facet_wrap( ~genesuperfamily, scales = "free_y") +
   geom_point()
+
+
+conoServerDB  %>%
+  drop_na() %>%
+  count(organismlatin, organismdiet, genesuperfamily, sort = T) %>% view()
+  mutate(genesuperfamily = factor(genesuperfamily, levels = unique(genesuperfamily))) %>%
+  ggplot(aes(organismlatin, genesuperfamily, fill = n)) +
+  facet_grid(~ organismdiet, scales = "free", space = "free") +
+  geom_tile(color = "white", linewidth = 0.5) +
+  theme_bw(base_family = "GillSans", base_size = 14) +
+  # scale_x_discrete(position = "top") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+
+conoServerDB %>% count(organismlatin, organismdiet, sort = T) %>%
+  ggplot(aes(y = organismlatin,  x = n)) +
+  ggforce::facet_col(organismdiet ~., scales = "free", space = "free") +
+  geom_col() +
+  theme_bw(base_family = "GillSans", base_size = 14)
+
+
+# library(taxize)
+# tax <- names2wormsdf(query, accepted = TRUE, marine = TRUE)
