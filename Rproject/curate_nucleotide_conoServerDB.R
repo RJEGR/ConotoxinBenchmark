@@ -242,6 +242,12 @@ file_out <- file.path(outdir, "curated_nuc_conoServerDB.rds")
 
 write_rds(Nodedf, file = file_out)
 
+
+# Stop here, and go to rsampling_conoServerDB.R to splintting stratified resampling with randomeness to capture nature variance of data without systemic bias
+
+quit()
+
+
 # Split apart sf with less than 10 sequences and omiting NA sf
 
 well_represented <- Nodedf %>% 
@@ -349,3 +355,11 @@ Biostrings::writeXStringSet(seqs, fasta_file)
 
 # Run orthofinder -S diamond -op -f peptide_dir. (peptide)
 # orthofinder -d -S diamond -op -f orthofinder_dir (dna)
+
+
+
+# source https://github.com/RJEGR/Meiofauna/blob/fe5674cb246021f131d4bfcbf6d3a1744db13e07/R/DB_TAXA2WORMS_PR2.R
+
+Nodedf %>% distinct(organismlatin) %>% pull() -> query
+
+tax <- names2wormsdf(query, accepted = TRUE, marine = TRUE)
