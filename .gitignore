@@ -4,3 +4,7 @@
 .Ruserdata
 2_transrate_dir/
 transrate/
+INPUTS/
+2_subsampling_dir/
+0_simulated_data_dir/
+INPUTS/

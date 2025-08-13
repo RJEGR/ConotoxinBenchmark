@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# write help arguments to include REFDIR=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/reads_artificiales/inputs
+
+
 export PATH=/LUSTRE/apps/bioinformatica/.local/bin:$PATH
 export PATH=/LUSTRE/apps/bioinformatica/ruby2/ruby-2.2.0/bin:$PATH
 export LD_LIBRARY_PATH=/LUSTRE/apps/bioinformatica/ruby2/ruby-2.2.0/lib:$LD_LIBRARY_PATH

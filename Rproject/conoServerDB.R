@@ -27,39 +27,25 @@ url <- 'https://www.conoserver.org/download/conoserver_nucleic.xml.gz'
 
 con <- gzcon(url(url, "rb"))
 
+file_out <- gsub(".xml.gz",".rds", basename(url))
 
-library(xml2)
-
-library(tidyverse)
-
-encoding <- "UTF-8" 
-
-head(xml_lines <- readLines(con, encoding = encoding, warn = FALSE))
-
-doc <- read_xml(paste(xml_lines, collapse = "\n"),
-  encoding = "UTF-8",as_html = T,
-  options = c("RECOVER", "NOERROR", "NOBLANKS"))
-
-close(con)
-
-entries <- xml_find_all(doc, ".//entry")
-
+dedup_DNAStringSet <- function(dnaset) {
+  
+  require(Biostrings)
+  
+  seq_chars <- as.character(dnaset)
+  split_names <- split(names(dnaset), seq_chars)
+  unique_seqs <- Biostrings::DNAStringSet(names(split_names))
+  names(unique_seqs) <- sapply(split_names, paste, collapse="|")
+  unique_seqs
+}
 extract_entry_info <- function(entry_node) {
   
-  # pb <- txtProgressBar(min = 0, max = n, style = 3) # style=3 is a nice load bar
-  # 
-  # results <- vector("list", n)
-  # for (i in seq_len(n)) {
-  #   results[[i]] <- extract_entry_info(entries[[i]])
-  #   setTxtProgressBar(pb, i)
-  # }
-  # close(pb)
   
-  # Get id (assuming one per entry)
   entry_id <- xml_text(xml_find_first(entry_node, "./id"))
   
   
-  cat(entry_id,"\n")
+  # cat(entry_id,"\n")
   
   # nucleotide_list <- lapply(entry_node, function(node) {
   #   list(
@@ -100,16 +86,16 @@ extract_entry_info <- function(entry_node) {
     # as for some nucleotide there are not protein related:
     
     protein_list <- as.data.frame(protein_list, stringsAsFactors = FALSE)
-
-
+    
+    
     
   } else {
-
+    
     
     # Return empty data frame with the right columns
     protein_list <- as.data.frame(matrix(nrow = 1, ncol = length(xpath_vec)))
-  
-  
+    
+    
   }
   
   colnames(protein_list) <- xpath_vec
@@ -123,13 +109,77 @@ extract_entry_info <- function(entry_node) {
   )
 }
 
+extract_entry_info_ <- function(entries, ...) {
+  
+  #   # wrapped version from names2wormsdf_, include ProgressBar
+  #   maxq <- length(entries)
+  #   
+  #   print(maxq)
+  #   
+  #   pb <- txtProgressBar(min = 0, max = maxq, style = 3, width = 50, char = "=")
+  #   
+  #   out <- list()
+  #   
+  #   for(i in 1:maxq) {
+  #     
+  #     
+  #     # out[[i]] <- extract_entry_info(entries)
+  #     
+  #     setTxtProgressBar(pb, i)
+  #   }
+  #   
+  #   close(pb) 
+  #   
+  #   out <- do.call(rbind, out)
+  #   
+  #   return(out)
+  #  
+}
+
+library(xml2)
+
+library(tidyverse)
+
+encoding <- "UTF-8" 
+
+head(xml_lines <- readLines(con, encoding = encoding, warn = FALSE))
+
+doc <- read_xml(paste(xml_lines, collapse = "\n"),
+  encoding = "UTF-8",as_html = T,
+  options = c("RECOVER", "NOERROR", "NOBLANKS"))
+
+close(con)
+
+entries <- xml_find_all(doc, ".//entry")
+
+
 # Apply to all entries
 all_entry_data <- lapply(entries, extract_entry_info)
 
 
 data <- dplyr::bind_rows(all_entry_data) %>% as_tibble() %>% mutate(sequence = str_to_upper(sequence))
 
-data 
+
+recode_to <- c("Conus flavidus" = "vermivorous", 
+  "Conus varius" = "vermivorous", 
+  "Conus terebra" = "vermivorous", 
+  "Conus sulcatus" = "molluscivorous",
+  "Conus adamsonii" = "piscivorous",
+  "Conus andremenezi" = "vermivorous",
+  "Conus araneosus" = "molluscivorous")
+
+data <- data %>% 
+  mutate(
+    organismdiet = ifelse(
+      organismlatin %in% names(recode_to),
+      recode_to[organismlatin],
+      organismdiet
+    )
+  ) 
+
+write_rds(data, file = file.path(outdir, file_out)) 
+
+# data <- read_rds(file.path(outdir, file_out))
 
 # EDA -----
 
@@ -174,12 +224,146 @@ nrow(Nodedf <- data %>% filter(!grepl("Patent|patent", name)))
 
 nrow(Nodedf <- Nodedf %>% drop_na(proteinsequence) %>% filter(grepl("^M", proteinsequence)))
 
+nrow(Nodedf <- Nodedf %>% filter(!grepl("N", sequence))) # omit ambigous sequences
+
 nrow(Nodedf <- Nodedf %>% filter(nchar(sequence) >= 100))
+
+# nrow(Nodedf <- Nodedf %>% filter(nchar(sequence) < 1000))
 
 nrow(Nodedf %>% distinct(sequence))
 
+Nodedf %>% summarise(mean = mean(nchar(sequence)), sd = sd(nchar(sequence)))
 
-# Write fasta using a apply to write 
+Nodedf %>% ggplot(aes(nchar(sequence))) +geom_histogram()
+
+# Computes the total sample size required to achieve a significant statistical power for ordinal outcomes.
+
+# The total sample size from posamsize indicates how many subjects in total are needed to detect the effect size with the specified power.
+# The efficiency compares the ordinal design’s efficiency to that of a continuous response design; values less than 1 indicate somewhat less efficiency.
+
+# The power output from popower indicates the probability of correctly rejecting the null hypothesis for the given sample size.
+# The standard error of the log odds ratio gives a sense of the precision of the estimated effect size under the model.
+
+
+estimate_power <- function(df, strata = stratified_sampling) {
+  
+  require(Hmisc)
+  
+  # pipeline from (https://library.virginia.edu/data/articles/power-and-sample-size-calculations-ordered-categorical-data)
+  
+
+  reference_prop <- df %>% dplyr::rename("strata" = any_of(strata)) %>% drop_na(strata) %>% group_by(strata) %>% dplyr::count(strata) %>% pull(n, name = strata)
+  
+  
+  reference_prop <- prop.table(reference_prop)
+  
+  # Estimate cumulative control probabilities to obtain projected cumulative feature probabilities.
+  
+  # cumref <- cumsum(reference)
+  
+  
+  OR <- (0.85*(1-0.7))/(0.7*(1-0.85))
+  
+  
+  f <- function(or, pc){
+    (or * pc)/(1 - pc + or * pc)
+  }
+  
+  experimental <- diff(c(0, sapply(cumsum(reference_prop), f, or = OR)))
+  
+  probs <- rbind(reference_prop, experimental)
+  
+  # probs
+  
+  marg_probs <- apply(probs, 2, mean)
+  
+  # marg_probs
+  
+  posamsize_res <- posamsize(p = marg_probs,
+    odds.ratio = OR,   fraction = 0.5,
+    alpha = 0.05, power = 0.9)
+  
+  
+  
+  print(posamsize_res)
+  # cat("\nThe total sample size required to achieve an significant statistical power\n")
+
+  
+  # The R functions popower and posamsize (in the Hmisc package) compute power and sample size estimates for ordinal responses using the proportional odds model.
+  
+  n <- round(posamsize_res$n)/2
+  
+  popower(p = marg_probs, odds.ratio = OR, n1 = n, n2 = n, alpha = 0.05)
+  
+}
+
+
+
+estimate_power(Nodedf, strata = "genesuperfamily")
+estimate_power(Nodedf, strata = "organismdiet")
+estimate_power(Nodedf, strata = "organismlatin")
+
+# Based on the calculations, genesuperfamily or organismdiet is good enogth to stratified samples
+
+# Instead of split data using bias sample size, ----
+# Use V-Fold Cross-Validation method to randomly split the data into V groups of roughly equal size
+
+set.seed(123)
+
+library(rsample)
+
+# Nodedf <- Nodedf %>% mutate(strata = interaction(organismdiet, genesuperfamily, drop = TRUE))
+
+
+stratified_sampling <- "organismdiet"
+
+folds <- rsample::vfold_cv(Nodedf, v = 12, strata = stratified_sampling)
+
+# estimate and diagnose sample bias within and across your folds. 
+
+# mean(sapply(folds$splits, function(split) nrow(analysis(split))))
+
+# s <- folds$splits[[1]]
+
+summarise_vfolds <- function(s, strata = stratified_sampling) {
+  
+  analysis(s) %>%
+    dplyr::rename("strata" = any_of(strata)) %>%
+    dplyr::count(strata) %>%
+    mutate(split = labels(s)$id)
+}
+
+dplyr::bind_rows(lapply(folds$splits, summarise_vfolds)) %>%
+  ggplot(aes(x = n, y = strata)) + geom_boxplot()
+
+save_vfold_fasta <- function(s) {
+  
+  
+  resampled_data <- analysis(s)
+  
+  seqs <- resampled_data %>%
+    pull(sequence, name = entry_id) %>%
+    Biostrings::DNAStringSet() %>%
+    dedup_DNAStringSet()
+  
+  cat(length(seqs), " sequences\n")
+  
+  # Write to FASTA, use group name in file
+  fasta_file <- file.path(outdir, paste0(labels(s)$id, ".fasta"))
+  
+  cat("Into ",basename(fasta_file), "\n")
+  
+  
+  Biostrings::writeXStringSet(seqs, fasta_file)
+  
+  
+}
+
+sapply(folds$splits, save_vfold_fasta)
+
+quit()
+
+# Old version include split of data by superfamily, but it is biased sampling method
 
 # Nodedf %>% filter(is.na(genesuperfamily)) %>% view()
 
@@ -211,22 +395,6 @@ Nodedf %>%
 
 Nodedf %>% filter(is.na(organismdiet)) %>% count(organismlatin, sort = T)
 
-recode_to <- c("Conus flavidus" = "vermivorous", 
-  "Conus varius" = "vermivorous", 
-  "Conus terebra" = "vermivorous", 
-  "Conus sulcatus" = "molluscivorous",
-  "Conus adamsonii" = "piscivorous",
-  "Conus andremenezi" = "vermivorous",
-  "Conus araneosus" = "molluscivorous")
-
-Nodedf <- Nodedf %>% 
-  mutate(
-    organismdiet = ifelse(
-      organismlatin %in% names(recode_to),
-      recode_to[organismlatin],
-      organismdiet
-    )
-  ) 
 
 Nodedf %>%
   count(organismdiet, split_as, sort = T) %>%
@@ -264,13 +432,7 @@ less_represented <- Nodedf %>%
   
 length(c(less_represented, well_represented)) # must match 43 sf + 1 unk sf
 
-dedup_DNAStringSet <- function(dnaset) {
-  seq_chars <- as.character(dnaset)
-  split_names <- split(names(dnaset), seq_chars)
-  unique_seqs <- Biostrings::DNAStringSet(names(split_names))
-  names(unique_seqs) <- sapply(split_names, paste, collapse="|")
-  unique_seqs
-}
+
 
 
 Nodedf %>% count(split_as) %>% view()

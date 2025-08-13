@@ -136,6 +136,24 @@ metrics_list <- lapply(reference_coverage_seq, function(i) {
 
 metricsdf <- bind_rows(metrics_list)
 
+
+assembly_df %>%
+  mutate(col = NA) %>%
+  filter(Assembler != "VELVET") %>%
+  mutate(reference_coverage = ifelse(is.na(hits) & is.na(reference_coverage), 0,reference_coverage )) %>%
+  mutate(col = ifelse(reference_coverage >= 0.50, "≥ 50% alignment", col)) %>%
+  mutate(col = ifelse(reference_coverage >= 0.70, "≥ 70% alignment", col)) %>%
+  mutate(col = ifelse(reference_coverage >= 0.80, "≥ 80% alignment", col)) %>%
+  mutate(col = ifelse(reference_coverage >= 0.90, "≥ 90% alignment", col)) %>%
+  mutate(col = ifelse(reference_coverage >= 0.95, "≥ 95% alignment", col)) %>%
+  mutate(col = ifelse(reference_coverage == 1, "≥ 100% alignment", col)) %>%
+  count(Assembler, col) %>%
+  drop_na() %>%
+  ggplot(aes(y = n, x = Assembler, fill = col)) +
+  ggforce::facet_col(col ~., scales = "free_y") +
+  geom_col(position = position_dodge2())
+
+
 metricsdf %>% 
   select(threshold, Recall, Assembler, Superfamily) %>%
   ggplot(aes(x = as.factor(threshold), y = Recall)) +

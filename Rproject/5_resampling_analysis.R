@@ -194,7 +194,7 @@ sum(sort(conoServerDB$hits) %in% sort(unique(transratedf$hits)))
 # Recall test
 
 
-metricsdf <- calculate_metrics(transratedf, reference_coverage_val = 1) %>% 
+metricsdf <- calculate_metrics(transratedf, reference_coverage_val = 0.95) %>% 
   mutate(
     Ratio = TP/FP,
     Accuracy = TP / (TP + FN + FP),
@@ -206,12 +206,12 @@ metricsdf <- calculate_metrics(transratedf, reference_coverage_val = 1) %>%
 
 metricsdf %>%
   drop_na() %>%
-  ggplot(aes(y = Fscore, x = as.factor(subdir2))) +
+  ggplot(aes(y = TP, x = as.factor(subdir2))) +
   # geom_boxplot() +
   facet_grid(Superfamily ~., scales = "free_y") +
   geom_jitter(position = position_jitter(0.1), shape = 1) +
-  stat_summary(fun = "mean", geom = "line", aes(group = 1), color="red") +
-  stat_summary(fun.data=mean_sdl, geom="pointrange", color="red") +
+  stat_summary(fun = "mean", geom = "line", aes(group = Superfamily), color="red") +
+  # stat_summary(fun.data=mean_sdl, geom="pointrange", color="red") +
   labs(x = "Subsampling") +
   theme_bw(base_family = "GillSans", base_size = 15) +
   theme(legend.position = "top",

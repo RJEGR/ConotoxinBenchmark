@@ -20,6 +20,11 @@
 
 ## stratified 10-fold cross-validation may be used.
 
+
+rm(list = ls())
+
+if(!is.null(dev.list())) dev.off()
+
 library(rsample)
 library(tidyverse)
 
@@ -34,14 +39,14 @@ df <- read_rds(f) %>% dplyr::rename("hits" = "entry_id")
 
 
 # Stratified bootstrap: resample by 'organismdiet'
-boot <- bootstraps(df, strata = organismdiet, times = 100)
+boot <- bootstraps(df, strata = organismdiet, times = 20)
 
 # Each bootstrap split captures the natural variance within each group
 # Access the resampled data from the first split:
 resampled_data <- analysis(boot$splits[[1]])
 
 
-strata <- df %>%
+df <- df %>%
   mutate(strata = interaction(organismdiet, genesuperfamily, drop = TRUE))
 
 # sampled_df <- df %>%
@@ -53,7 +58,8 @@ set.seed(123)
 
 # folds <- rsample::vfold_cv(df, v = 10, strata = organismdiet)
 
-folds <- rsample::vfold_cv(strata, v = 10, strata = strata)
+folds <- rsample::vfold_cv(df, v = 20, strata = strata)
+
 
 # estimate and diagnose sample bias within and across your folds. 
 
@@ -61,6 +67,58 @@ ess_per_fold <- sapply(folds$splits, function(split) nrow(analysis(split)))
 mean_ess <- mean(ess_per_fold)
 print(mean_ess)
 
+
+
+
 # continue w 3.4.6 Variance and Bias in Resampling
 
 # f you were to conduct 10-fold cross-validation many times on the same data set, the variation in the resampling scheme could be measured by determining the spread of the resulting averages.This variation could be compared to a different scheme that was repeated the same number of times (and so on) to get relative comparisons of the amount of noise in each scheme.
+
+
+
+
+# The posamsize() function estimates sample size for detecting a given effect size in proportional odds (ordinal logistic) models, for ordinal outcomes.
+
+# The posamsize function within the Hmisc package in R calculates the necessary sample size for studies involving ordinal outcomes, particularly those using a proportional odds model. It helps researchers determine the required sample size to achieve a desired power, considering factors like the odds ratio to be detected and the distribution of the ordinal outcome variable. 
+
+library(Hmisc)
+
+# Now let’s say it’s reasonable and achievable that the experimental treatment will increase the probability of good or better to 0.85. This produces an odds ratio of about 2.42, which we calculate below using the cross-product rule. (https://library.virginia.edu/data/articles/power-and-sample-size-calculations-ordered-categorical-data)
+
+reference_prop <- prop.table(table(df$organismdiet))
+
+# We can code this as a function and apply it to the projected cumulative control probabilities to obtain projected cumulative feature probabilities.
+
+# cumref <- cumsum(reference)
+
+
+OR <- (0.85*(1-0.7))/(0.7*(1-0.85))
+
+
+f <- function(or, pc){
+  (or * pc)/(1 - pc + or * pc)
+}
+
+experimental <- diff(c(0, sapply(cumsum(reference_prop), f, or = OR)))
+
+probs <- rbind(reference_prop, experimental)
+
+probs
+
+marg_probs <- apply(probs, 2, mean)
+marg_probs
+
+result <- posamsize(p = marg_probs,
+  odds.ratio = OR,   fraction = 0.5,
+  alpha = 0.05, power = 0.9)
+
+print(result)
+
+# propsPO(organismdiet ~ genesuperfamily, data = df)
+
+# The R functions popower and posamsize (in the Hmisc package) compute power and sample size estimates for ordinal responses using the proportional odds model.
+
+n <- round(result$n)/2
+
+popower(p = marg_probs, odds.ratio = OR, n1 = n, n2 = n, alpha = 0.05)
+
