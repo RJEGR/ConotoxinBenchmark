@@ -206,6 +206,7 @@ metricsdf <- calculate_metrics(transratedf, reference_coverage_val = 0.95) %>%
 
 metricsdf %>%
   drop_na() %>%
+  filter(Superfamily == "all") %>%
   ggplot(aes(y = TP, x = as.factor(subdir2))) +
   # geom_boxplot() +
   facet_grid(Superfamily ~., scales = "free_y") +
