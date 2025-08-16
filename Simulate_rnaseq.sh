@@ -11,13 +11,13 @@ while getopts "d:h" opt; do
     case $opt in
         d) FASTA_DIR="$OPTARG";;
         h)
-            echo "Usage: $(basename $0) -s <Manifest> [-o <OutputDir>]"
+            echo "Usage: $(basename $0) -d <absolute_path/fasta_folder>"
             echo
             echo "Arguments:"
             echo "  -d <Fasta directory> Relative or absolute path to the directory containing fasta files."
             echo
             echo "Description:"
-            echo "  This script simulate rnaseq data using art_illumina software."
+            echo "  This script simulate RNA-seq data using art_illumina software. This script also esstimates the depth of coverage for each RNA-seq sample created."
             exit 0
             ;;
         ?)
@@ -38,44 +38,6 @@ if [[ -z "$WD" ]]; then
     exit 1
 fi
 
-run_transrate() {
-
-  mkdir -p transrate_tmp_dir
-
-  export PATH=/LUSTRE/apps/bioinformatica/.local/bin:$PATH
-  export PATH=/LUSTRE/apps/bioinformatica/ruby2/ruby-2.2.0/bin:$PATH
-  export LD_LIBRARY_PATH=/LUSTRE/apps/bioinformatica/ruby2/ruby-2.2.0/lib:$LD_LIBRARY_PATH
-
-  #which transrate
-
-    local ref=$1
-    
-    local Manifest=$2
-
-
-    local forward_fq=${Manifest%.*}_concat_PE1.fq
-    
-    local reverse_fq=${Manifest%.*}_concat_PE2.fq
-
-    BS=$(awk '{print $1}' "$Manifest")
-
-    local call=$(awk '{print $2}' "$manifest" | tr "\n" " ")
-    for fq in $call; do [[ -n "$fq" ]] && echo "$fq"; done | xargs cat > "$forward_fq"
-
-    local call=$(awk '{print $3}' "$manifest" | tr "\n" " ")
-    for fq in $call; do [[ -n "$fq" ]] && echo "$fq"; done | xargs cat > "$reverse_fq"
-
-    TRANSRATE_DIR=${BS}_transrate_dir
-
-
-    call="transrate --left $forward_fq --right $reverse_fq --assembly $ref --output transrate_tmp_dir/$TRANSRATE_DIR --threads 20"
-
-    echo "Executing: $call"
-    
-    eval $call
-
-    rm "${Manifest%.*}_concat_PE"*.fq
-}
 
 run_depth() {
 
@@ -133,7 +95,7 @@ run_depth() {
 
 }
 
-# filepath: /Users/cigom/Documents/GitHub/ConotoxinBenchmark/run_artificialset.sh
+
 random_string=$(date +%s%N) # Current timestamp in nanoseconds
 md5sum=$(echo -n "$random_string" | md5sum | awk '{print $1}') # Generate MD5 checksum from the random string
 
@@ -195,9 +157,6 @@ SEQ_SYS="HS20"
 
     call="run_depth $fasta_file ${art_illumina_dir}/${output_bs}.sam"
 
-   # Omit transrate as illumina art may output sam files to calculate coverage stats (sam_stats.sh)
-    # call="run_transrate $fasta_file ${md5sum}_dir/${output_bs}_samples.txt"
-    
     echo "Executing: $call"
     
     eval $call
