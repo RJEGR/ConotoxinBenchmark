@@ -47,11 +47,13 @@ which transrate
 
 run_transrate() {
     
-    REFDIR=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/reads_artificiales/inputs
+    local REFDIR="$1"
+
+    local FASTA_DIR="$2"
+
+    local MANIFEST_FILE="$3"
 
     mkdir -p transrate_tmp_dir
-
-    local FASTA_DIR="$1"
     
     find $FASTA_DIR -maxdepth 1 -type f -name "*.fa" | while read -r asm; do
         
@@ -83,7 +85,7 @@ run_transrate() {
 
 }
 
-run_transrate "$FASTA_DIR"
+run_transrate "$REFDIR" "$FASTA_DIR" "$MANIFEST_FILE"
 
 exit
 
