@@ -1,12 +1,11 @@
 #!/bin/bash
 
+# Import seqkit to the environment
 export PATH=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/Software:$PATH
 
 
 EXPORT=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/1_assembly_dir/RUN_ARTIFICIAL_PIPELINE_DIR/run_assemblers_dir
 export PATH=$PATH:$EXPORT
-
-# Add -o flag for output directory, with default as md5sum of manifest+Prop
 
 while getopts "s:o:h" opt; do
     case $opt in
@@ -17,10 +16,10 @@ while getopts "s:o:h" opt; do
             echo
             echo "Arguments:"
             echo "  -s <Manifest>: A text file containing sample information. Option -s all, allow to run assembly batches for all manifests matching the pattern *.txt."
-            echo "  -o <OutputDir>: Directory to save all outputs. If not provided, a default folder will be created using md5sum of manifest and proportion."
+            echo "  -o <OutputDir>: Directory to save all outputs. If not provided, a default folder will be created using md5sum hash, including {Manifest} prefix and proportion value."
             echo
             echo "Description:"
-            echo "  This script performs subsampling of reads from a given Manifest file by concatenating reads from the Manifest file, and executing the specified commands."
+            echo "  This script performs subsampling with seqkit-tool a given proportion between 0 to 1 of PE-end reads from the input {Manifest} file provided, and executes an assembly of these reads."
             exit 0
             ;;
         ?)
