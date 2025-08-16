@@ -183,6 +183,50 @@ write_rds(data, file = file.path(outdir, file_out))
 
 # EDA -----
 
+summarise_strata <- function(data, strata = ...) {
+  
+  data %>%
+    dplyr::rename("strata" = any_of(strata)) %>% 
+    distinct(strata, sequence) %>%
+    count(strata, sort = T) %>%
+    mutate(summarise = "") %>%
+    mutate(summarise = ifelse(n == 1, "One", summarise)) %>%
+    mutate(summarise = ifelse(between(n, 2,9), "< 10", summarise)) %>%
+    mutate(summarise = ifelse(between(n, 10,100), "> 10", summarise)) %>%
+    mutate(summarise = ifelse(n > 100, "> 100", summarise)) %>%
+    mutate(summarise = ifelse(is.na(strata), "Empty", summarise)) %>%
+    mutate(summarise = factor(summarise, levels = c("Empty","One", "< 10", "> 10", "> 100"))) %>%
+    # mutate(summarise = ifelse(n == 1, "One-seq", summarise)) %>%
+    # mutate(summarise = ifelse(n == 2, "Two-seq", summarise)) %>%
+    # mutate(summarise = ifelse(between(n, 3,5), "Between 3-5", summarise)) %>%
+    # mutate(summarise = ifelse(between(n, 6,10), "Between 6-10", summarise)) %>%
+    # mutate(summarise = ifelse(n > 10, "> 10", summarise)) %>%
+    # mutate(summarise = ifelse(n > 20, "> 20", summarise)) %>%
+    # mutate(summarise = ifelse(n > 50, "> 50", summarise)) %>%
+    # mutate(summarise = ifelse(n > 100, "> 100", summarise)) %>%
+    # count(summarise) %>%
+    group_by(summarise) %>% summarise(seqs = sum(n), n = n()) %>%
+    mutate(strata = strata) %>%
+    mutate(frac = n/sum(n))
+    # mutate(summarise = factor(summarise, levels = c("", "", "", "")))
+    # dplyr::rename(strata = "n")
+}
+  
+stratas <- c("organismlatin", "organismdiet", "genesuperfamily")
+
+# summarise_strata(data, strata = "organismlatin")
+
+dplyr::bind_rows(lapply(stratas, function(s) summarise_strata(data, strata = s))) %>%
+  mutate(label = paste0(n, " (", round(frac*100),"%)")) %>%
+  ggplot(aes(y = summarise, x = strata, fill = frac)) +
+  geom_tile(color = "white", linewidth = 0.5, alpha = 0.1) +
+  geom_text(aes(label = label), size = 7, family = "GillSans") +
+  scale_x_discrete("Strata",position = "top") + 
+  scale_y_discrete("Number of subjects (sequences)") +
+  theme_classic(base_family = "GillSans", base_size = 16)
+  # theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+
+
 data %>% 
   # drop_na(proteinsequence)
   count(organismlatin, sort = T) %>%
@@ -202,14 +246,15 @@ data %>%
   ggplot(aes(y = genesuperfamily, x = n)) + geom_col()
 
 
-# data %>% 
-#   count(organismlatin, genesuperfamily, sort = T) %>%
-#   drop_na(genesuperfamily) %>%
-#   mutate(genesuperfamily = factor(genesuperfamily, levels = unique(genesuperfamily))) %>%
-#   ggplot(aes(organismlatin, genesuperfamily, fill = n)) +
-#   geom_tile(color = "white", linewidth = 0.5) +
-#   theme_bw(base_family = "GillSans", base_size = 12) +
-#   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+Nodedf %>%
+  count(organismdiet,organismlatin, genesuperfamily, sort = T) %>%
+  drop_na(genesuperfamily) %>%
+  mutate(genesuperfamily = factor(genesuperfamily, levels = unique(genesuperfamily))) %>%
+  ggplot(aes(organismlatin, genesuperfamily, fill = n)) +
+  facet_grid(~ organismdiet, scales = "free", space = "free") +
+  geom_tile(color = "white", linewidth = 0.5) +
+  theme_bw(base_family = "GillSans", base_size = 12) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
 
 # Filter and Split -----
 
@@ -236,6 +281,17 @@ Nodedf %>% summarise(mean = mean(nchar(sequence)), sd = sd(nchar(sequence)))
 
 Nodedf %>% ggplot(aes(nchar(sequence))) +geom_histogram()
 
+
+dplyr::bind_rows(lapply(stratas, function(s) summarise_strata(data, strata = s))) %>%
+  mutate(label = paste0(n, " (", round(frac*100),"%)")) %>%
+  ggplot(aes(y = summarise, x = strata, fill = frac*100)) +
+  geom_tile(color = "white", linewidth = 0.5, alpha = 0.1) +
+  geom_text(aes(label = label), size = 7, family = "GillSans") +
+  scale_x_discrete("Strata",position = "top") + 
+  scale_y_discrete("Number of subjects (sequences)") +
+  theme_classic(base_family = "GillSans", base_size = 16)
+# theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+
 # Computes the total sample size required to achieve a significant statistical power for ordinal outcomes.
 
 # The total sample size from posamsize indicates how many subjects in total are needed to detect the effect size with the specified power.
@@ -252,7 +308,9 @@ estimate_power <- function(df, strata = stratified_sampling) {
   # pipeline from (https://library.virginia.edu/data/articles/power-and-sample-size-calculations-ordered-categorical-data)
   
 
-  reference_prop <- df %>% dplyr::rename("strata" = any_of(strata)) %>% drop_na(strata) %>% group_by(strata) %>% dplyr::count(strata) %>% pull(n, name = strata)
+  reference_prop <- df %>% 
+    dplyr::rename("strata" = any_of(strata)) %>% 
+    drop_na(strata) %>% group_by(strata) %>% dplyr::count(strata) %>% pull(n, name = strata)
   
   
   reference_prop <- prop.table(reference_prop)
@@ -285,7 +343,12 @@ estimate_power <- function(df, strata = stratified_sampling) {
   
   
   
-  print(posamsize_res)
+  # print(posamsize_res)
+  
+  Sample_size <- posamsize_res[[1]]
+  
+  Efficiency <- posamsize_res[[2]]
+  
   # cat("\nThe total sample size required to achieve an significant statistical power\n")
 
   
@@ -293,10 +356,17 @@ estimate_power <- function(df, strata = stratified_sampling) {
   
   n <- round(posamsize_res$n)/2
   
-  popower(p = marg_probs, odds.ratio = OR, n1 = n, n2 = n, alpha = 0.05)
+  popower_res <- popower(p = marg_probs, odds.ratio = OR, n1 = n, n2 = n, alpha = 0.05)
+  
+  # print(popower_res)
+  
+  Power <- popower_res[[1]]
+  
+  Odds_ratio <- popower_res[[3]]
+  
+  data.frame(Sample_size, Efficiency, Power, Odds_ratio)
   
 }
-
 
 
 estimate_power(Nodedf, strata = "genesuperfamily")
@@ -315,9 +385,9 @@ library(rsample)
 # Nodedf <- Nodedf %>% mutate(strata = interaction(organismdiet, genesuperfamily, drop = TRUE))
 
 
-stratified_sampling <- "organismdiet"
+stratified_sampling <- "genesuperfamily"
 
-folds <- rsample::vfold_cv(Nodedf, v = 12, strata = stratified_sampling)
+folds <- rsample::vfold_cv(Nodedf, v = 12) # strata = stratified_sampling
 
 # estimate and diagnose sample bias within and across your folds. 
 
@@ -333,8 +403,41 @@ summarise_vfolds <- function(s, strata = stratified_sampling) {
     mutate(split = labels(s)$id)
 }
 
+
+re_estimates <- function(s) {
+  analysis(s) %>%
+  estimate_power(strata = stratified_sampling) %>%
+    mutate(split = labels(s)$id)
+}
+
+
+
+
+dplyr::bind_rows(lapply(folds$splits, re_estimates)) %>%
+  pivot_longer(-split) %>%
+  # group_by(name) %>% summarise(mean = mean(value), n = n())
+  # filter(name %in% c("Power", "Efficiency")) %>%
+  ggplot(aes(x = value, y = split)) + 
+  facet_grid(~ name, scales = "free_x") + geom_col() +
+  # geom_jitter(shape =1 ) +
+  # ylim(0,1) +
+  theme_classic(base_family = "GillSans", base_size = 16)
+
+  
+
+
 dplyr::bind_rows(lapply(folds$splits, summarise_vfolds)) %>%
-  ggplot(aes(x = n, y = strata)) + geom_boxplot()
+  # drop_na(strata) %>%
+  mutate(strata = ifelse(is.na(strata), "Unknown", strata)) %>%
+  arrange(desc(n)) %>% mutate(strata=factor(strata, levels = unique(strata))) %>%
+  mutate(facet = ifelse(n > 50, "facet2", "facet1")) %>%
+  ggplot(aes(x = n, y = strata)) + 
+  geom_jitter(shape = 1, position = position_jitter(0.1), size = 0.5) +
+  stat_summary(fun = "mean", geom = "point", aes(group = 1), color="red") +
+  stat_summary(fun.data=mean_sdl, geom="pointrange", color="red") +
+  facet_grid(~facet, scales = "free_x") +
+  theme_classic(base_family = "GillSans", base_size = 12) +
+  labs(y = "Gene superfamily", x = "n samples")
 
 save_vfold_fasta <- function(s) {
   
