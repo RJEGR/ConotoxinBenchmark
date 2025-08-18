@@ -150,7 +150,13 @@ SEQ_SYS="HS20"
     forward_file="$PWD/${art_illumina_dir}/${output_bs}1.fq"
     reverse_file="$PWD/${art_illumina_dir}/${output_bs}2.fq"
 
-    echo "$output_bs" `printf "$forward_file\t$reverse_file"` >> "${md5sum}_dir/${output_bs}_samples.txt"
+    reference_file="${fasta_file}"
+
+    #echo "$output_bs" `printf "$forward_file\t$reverse_file"` >> "${md5sum}_dir/${output_bs}_samples.txt"
+
+    # Generates a tabular file containing the sample name tag in the frist column , and the paths to the forward and reverse reads, in the second and third columns, respectively. also the reference is added in the four column.
+
+    echo "$output_bs" `printf "$forward_file\t$reverse_file\t$reference_file"` >> "${md5sum}_dir/${output_bs}_samples.txt"
 
 
     echo "Calculating depth for $output_bs"
