@@ -121,7 +121,9 @@ SEQ_SYS="HS20"
 
   mkdir -p $art_illumina_dir
 
-  for fcov in 10 20 50 100 200 500 700 1000; do
+  #for fcov in 10 20 50 100 200 500 700 1000; do
+  #for fcov in 5 10 15 20 25 30 40 50 60 70 80 90 100 150 200 300 400 500; do
+  for fcov in 5 10; do
 
     
     output_bs="${bs}_${fcov}x_PE"
@@ -150,14 +152,24 @@ SEQ_SYS="HS20"
     forward_file="$PWD/${art_illumina_dir}/${output_bs}1.fq"
     reverse_file="$PWD/${art_illumina_dir}/${output_bs}2.fq"
 
-    reference_file="${fasta_file}"
+    # if $WD is a relative path, convert to absolute path
+    relative_path="$WD/${fasta_file##*/}" # Extract the filename from the path
+    #absolute_path=$(realpath "$relative_path") # Convert to absolute path
+    absolute_path="$(cd "$(dirname "$relative_path")" && pwd)/$(basename "$relative_path")"
 
+    echo "Absolute path: $absolute_path"
+
+    reference_file="$absolute_path"
+    
     #echo "$output_bs" `printf "$forward_file\t$reverse_file"` >> "${md5sum}_dir/${output_bs}_samples.txt"
 
     # Generates a tabular file containing the sample name tag in the frist column , and the paths to the forward and reverse reads, in the second and third columns, respectively. also the reference is added in the four column.
 
     echo "$output_bs" `printf "$forward_file\t$reverse_file\t$reference_file"` >> "${md5sum}_dir/${output_bs}_samples.txt"
 
+    echo "creating manifest file for $output_bs"
+    
+    cat "${md5sum}_dir/${output_bs}_samples.txt"
 
     echo "Calculating depth for $output_bs"
 
