@@ -156,7 +156,6 @@ entries <- xml_find_all(doc, ".//entry")
 # Apply to all entries
 all_entry_data <- lapply(entries, extract_entry_info)
 
-
 data <- dplyr::bind_rows(all_entry_data) %>% as_tibble() %>% mutate(sequence = str_to_upper(sequence))
 
 
@@ -246,7 +245,7 @@ data %>%
   ggplot(aes(y = genesuperfamily, x = n)) + geom_col()
 
 
-Nodedf %>%
+data %>%
   count(organismdiet,organismlatin, genesuperfamily, sort = T) %>%
   drop_na(genesuperfamily) %>%
   mutate(genesuperfamily = factor(genesuperfamily, levels = unique(genesuperfamily))) %>%
@@ -265,6 +264,8 @@ nrow(data)
 # ex.
 # data %>% drop_na(proteinsequence) %>% filter(grepl("^ATG", sequence))
 
+
+
 nrow(Nodedf <- data %>% filter(!grepl("Patent|patent", name)))
 
 nrow(Nodedf <- Nodedf %>% drop_na(proteinsequence) %>% filter(grepl("^M", proteinsequence)))
@@ -280,6 +281,38 @@ nrow(Nodedf %>% distinct(sequence))
 Nodedf %>% summarise(mean = mean(nchar(sequence)), sd = sd(nchar(sequence)))
 
 Nodedf %>% ggplot(aes(nchar(sequence))) +geom_histogram()
+
+# Evaluate freq. of start and end codon
+data %>% 
+  drop_na(proteinsequence) %>% 
+  mutate(start_codon = substr(proteinsequence, 1, 1), 
+  # end_codon = substr(proteinsequence, nchar(proteinsequence)-1, nchar(proteinsequence))
+    ) %>%
+  group_by(start_codon) %>% summarise(n = n(), mean = mean(nchar(sequence)), sd = sd(nchar(sequence))) %>%
+  arrange(desc(n)) %>%
+  mutate(start_codon = factor(start_codon, levels = start_codon)) %>%
+  # ggplot(aes(x = start_codon, y = nchar(proteinsequence))) + 
+  ggplot(aes(x = start_codon, y = mean, size = n)) +
+  geom_point()
+
+# Evaluate number of cDNA
+
+Nodedf %>% 
+  drop_na(proteinsequence) %>% 
+  mutate(
+    # end_codon = substr(sequence, 1, 3), 
+    end_codon = substr(sequence, nchar(sequence)-2, nchar(sequence))
+  ) %>%
+  mutate(col = ifelse(grepl("TAA$|TAG$|TGA$", sequence), "stop_codon", "other")) %>%
+  # group_by(end_codon) %>% summarise(n = n(), mean = mean(nchar(sequence)), sd = sd(nchar(sequence))) %>%
+  # arrange(desc(n)) %>% 
+  # mutate(end_codon = factor(end_codon, levels = end_codon)) %>%
+  ggplot(aes(x = end_codon, y = nchar(proteinsequence), colour = col)) + 
+  geom_boxplot()
+
+Nodedf %>% drop_na(proteinsequence) %>% filter(grepl("TAA$|TAG$|TGA$", sequence)) %>% View()
+
+
 
 
 dplyr::bind_rows(lapply(stratas, function(s) summarise_strata(data, strata = s))) %>%
