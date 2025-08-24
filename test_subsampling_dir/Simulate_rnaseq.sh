@@ -1,0 +1,1 @@
+/Users/cigom/Documents/GitHub/ConotoxinBenchmark/Simulate_rnaseq.sh
