@@ -2,7 +2,8 @@
 
 Abinitio we started wrangling conoServer records from hosted [website](https://www.conoserver.org/download/conoserver_nucleic.xml.gz). You can figure out how to do it yourself using r (and r package xml, biostrings, rsample and tidyverse) to chose quality data and power and sensitivity analysis. We provided the example script `ConoServerDB.R` to help you. Then using it as ground truth dataset for the simulated data set using the following steps.
 
-![alt text](<./Figures/Analysis_schema.png "ConoServerDB" width="500" hight="500" >)
+![alt text](https://github.com/RJEGR/ConotoxinBenchmark/blob/main/Figures/Analysis_schema.png)
+
 A flowchart illustrating the analysis schema for creating a ground truth dataset and simulating RNAseq data. The diagram shows sequential steps including data wrangling from the ConoServer database, running simulation scripts, generating depth files, evaluating assembly precision, and performing subsampling analysis. Each step is visually connected with arrows, and the chart includes labels such as Step 1 Simulate RNAseq, Step 2 Assembly Evaluation, Step 3 Subsampling Analysis, and Step 4 Kmer Analysis. The environment is a clean digital workspace with a logical progression of tasks. The tone is informative and methodical.
 
 
@@ -32,10 +33,13 @@ Assemblers.sh -s all -c run.config
 
 
 ### Step 3
-We also test whether or not sample complexity (as linear function of the number of reads) as effect in precision to assembly conotoxins. To do that, we used the script `Subsampling.sh` to run the analysis using individual simulated data set. For increment power and precision analysis we did this step 4-folds to replicate the analysis in a `# sbatch Sampling_analysis.boostrap.slurm`.
+We also test whether or not sample complexity (as linear function of the number of reads) as effect in precision to assembly conotoxins. To do that, we used the script `Subsampling.sh` to run the analysis using individual simulated (-s all) data set and different subset of proportions (-p).
 
 ```bash
-./Subsampling.sh -s $manifest
+for P in $(seq 0.1 0.1 1); do
+     ./Subsampling.sh -s all -p $P
+done
+
 ```
 
 #### Step 3.2
