@@ -9,4 +9,14 @@
 
 Assemblers.sh -s all -c run.config
 
+find "boostrap_dir_${i}/*_FASTA_DIR" -name "*.fa" | while read -r contig_file; do
+
+            call="Accuracy.sh -d $contig_file -s $manifest"
+            
+            echo $call
+            
+            eval $call
+
+        done
+        
 exit 0
