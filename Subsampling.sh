@@ -91,8 +91,6 @@ run_reference_transrate() {
 
     echo "Moving results to final directory: transrate_contigs_dir"
 
-    # Here is not finding contig_file 
-
     contig_file=$(find "transrate_tmp_dir/$TRANSRATE_DIR"  -name "contigs.csv")
 
     dst="transrate_contigs_dir/${contig_file#transrate_tmp_dir}"
