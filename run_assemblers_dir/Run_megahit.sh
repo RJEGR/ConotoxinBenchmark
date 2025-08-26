@@ -4,7 +4,8 @@ forward_fq=$1
 reverse_fq=$2
 OUTDIR=$3
 CPU=$4
-
+MEM=$5
+FINAL_DIR=$6
 
 
 
@@ -12,20 +13,22 @@ export PATH=/LUSTRE/apps/bioinformatica/megahit/bin/:$PATH
 
 which megahit
 
-# BinPacker -s fq -p pair -l reads.left.fq -r reads.right.fq
-
-rm -rf $OUTDIR
+rm -rf $OUTDIR # As megahit does not overwrite existing dirs, we remove it first
 
 call="megahit -1 $forward_fq -2 $reverse_fq -o $OUTDIR -t $CPU --presets meta-sensitive"
 
-echo $call
-
+echo "Executing: $call" 
 eval $call
 
-BS=`echo $(basename $OUTDIR) | awk -F'_' '{print $1"_"$2}'`
 
-# mv $OUTDIR/final.contigs.fa ${BS}_FASTA_DIR/${OUTDIR%_dir}.fa
-movecall="mv $OUTDIR/final.contigs.fa ${BS}_FASTA_DIR/${OUTDIR%_dir}.fa"
+f1=$(find "${OUTDIR}" -maxdepth 1 -type f -name 'final.contigs.fa')
+
+echo "Results of the assembly found at: $f1"
+
+final_fasta=$FINAL_DIR/${OUTDIR%_dir}.fa
+
+movecall="mv $f1 $final_fasta"
+
 echo $movecall
 eval $movecall
 
