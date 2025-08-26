@@ -40,6 +40,58 @@ chmod +x run_assemblers_dir/*sh
 EXPORT=$PWD/run_assemblers_dir
 export PATH=$PATH:$EXPORT
 
+
+run_reference_transrate() {
+
+
+    export PATH=/LUSTRE/apps/bioinformatica/.local/bin:$PATH
+    export PATH=/LUSTRE/apps/bioinformatica/ruby2/ruby-2.2.0/bin:$PATH
+    export LD_LIBRARY_PATH=/LUSTRE/apps/bioinformatica/ruby2/ruby-2.2.0/lib:$LD_LIBRARY_PATH
+
+    mkdir -p transrate_tmp_dir
+    mkdir -p transrate_contigs_dir
+    
+    local QUERY="$1"
+    
+    #local Manifest="$2"
+
+    local TARGET=$(awk '{print $4}' "$2")
+        
+    echo "Processing FASTA : $QUERY against $TARGET"
+
+    BS=$(basename "${QUERY%.*}")
+        
+    TRANSRATE_DIR=${BS}_dir
+
+    echo "Transrate directory is : $TRANSRATE_DIR"
+
+    call="transrate --assembly $QUERY --reference $TARGET --output transrate_tmp_dir/$TRANSRATE_DIR --threads 20"
+
+    echo "Executing: $call"
+
+    eval $call &> /dev/null
+
+    echo "Finished processing $QUERY and $TARGET in transrate_tmp_dir/$TRANSRATE_DIR"
+
+    echo "Moving results to final directory: transrate_contigs_dir"
+
+    # Here is not finding contig_file 
+
+    contig_file=$(find "transrate_tmp_dir/$TRANSRATE_DIR"  -name "contigs.csv")
+
+    dst="transrate_contigs_dir/${contig_file#transrate_tmp_dir}"
+
+    mkdir -p "$(dirname "$dst")"
+            
+    echo "Moving $contig_file to $dst"
+
+    mv "$contig_file" "$dst"
+
+    rm -fr transrate_tmp_dir/$TRANSRATE_DIR
+    
+
+}
+
 run_assembly_batches() {
     local manifest="$1"
     local config="$2"
@@ -60,8 +112,11 @@ run_assembly_batches() {
     for fq in $call; do [[ -n "$fq" ]] && echo "$fq"; done | xargs cat > "$reverse_fq"
     
 
-    local CPU=${SLURM_CPUS_ON_NODE}
-    local MEM=${SLURM_MEM_PER_NODE}
+    #local CPU=${SLURM_CPUS_ON_NODE}
+    #local MEM=${SLURM_MEM_PER_NODE}
+
+    CPU=20
+    MEM=100
 
     local FASTA_DIR="${manifest%.*}_FASTA_DIR"
 
@@ -78,30 +133,36 @@ run_assembly_batches() {
 
         local tool=$(echo "$line" | awk -F "=" '{print $1}')
         local bs=$(basename "${manifest%.*}")
-        local call=$(echo "$line" | awk -F "=" '{print $2}') 
+        local run_tool=$(echo "$line" | awk -F "=" '{print $2}') 
 
         local chkp_file="1_${tool}_${bs}.chkp" 
 
         if [ ! -f chkp_dir/"$chkp_file" ]; then
+
+            echo "Step 1: Running assembly with $tool and $bs"
         
             local OUTDIR="${bs}_${tool}_dir"
             
             mkdir -p "$OUTDIR"
 
-            call=$(eval echo $call "$forward_fq" "$reverse_fq" "$OUTDIR" "$CPU" "$MEM")         
+            call=$(eval echo $run_tool "$forward_fq" "$reverse_fq" "$OUTDIR" "$CPU" "$MEM" "$FASTA_DIR")         
 
             echo "Executing: $call"
             
-            eval $call
+            eval $call &> /dev/null
 
             # write a chunk of code to check if any fasta file was creates in $OUTDIR, if true, touch "$chkp_file", else echo "No fasta file created in $OUTDIR, skipping checkpoint creation."
-            if ls "$FASTA_DIR"/${OUTDIR%_dir}.fa 1> /dev/null 2>&1; then
+            
+            final_fasta="$FASTA_DIR"/${OUTDIR%_dir}.fa
+            
+            if ls $final_fasta 1> /dev/null 2>&1; then
                 
                 echo "Fasta file created in $OUTDIR, creating checkpoint."
 
                 touch chkp_dir/"$chkp_file"
                 
                 rm -fr "$OUTDIR"
+
             else
                 echo "No fasta file created in $OUTDIR, skipping checkpoint creation."
                 echo "Saving outputs in issues_dir directory for further investigation."
@@ -109,31 +170,21 @@ run_assembly_batches() {
                 mv "$OUTDIR" issues_dir
                 continue
             fi
-            
+
+        
+
+
+        echo "Step 2: calculating accuracy of the assemblies..."
+
+        call="run_reference_transrate "$final_fasta" "$manifest"" 
+        echo "Executing: $call"
+        eval $call &> /dev/null
 
         else
             echo "${chkp_file} checkpoint already exists."
         fi
     done < "$config"
 
-
-    # After running all assemblers, evaluate accuracy of assemblies using transrate or other tool
-
-    # I recomend to write sub-module Accuracy.sh to call this step
-
-     find "$FASTA_DIR" -maxdepth 1 -type f -name '*.fa' | while read -r ASSEMBLER; do
-        REFDIR=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/reads_artificiales/inputs
-        FAMILYPREFIX=$(basename "${FASTA_DIR%_FASTA_DIR}")
-        REF="$REFDIR/${FAMILYPREFIX}.fasta"
-        BSCONTIG=$(basename "${ASSEMBLER%.fa}")
-        TRANSRATE_DIR="${BSCONTIG}_transrate_dir"
-
-      
-        transrate_call="Run_transrate.sh $forward_fq $reverse_fq $ASSEMBLER $REF $TRANSRATE_DIR"
-        echo "Executing: $transrate_call"
-        eval $transrate_call
-
-        done
 
     if [[ -n "${manifest%.*}" ]]; then
         rm -f "${manifest%.*}_concat_PE"*.fq
@@ -144,21 +195,28 @@ run_assembly_batches() {
     fi
 }
 
+
 if [[ "$Manifest" == "all" ]]; then
     echo "Running assembly batches for all manifests matching the pattern..."
     
-    find "$PWD" -maxdepth 1 -type f -name '*.txt' | while read -r MANIFESTBATCH; do 
+    find "$PWD" -maxdepth 1 -name '*.txt' | while read -r MANIFESTBATCH; do 
          call="run_assembly_batches "$MANIFESTBATCH" "$CONFIG""
          echo "Executing: $call"
          eval $call
     done
+
 else
+
+    echo "Step 1: Running assemblies..."
+
     call="run_assembly_batches "$Manifest" "$CONFIG""
     echo "Executing: $call"
     eval $call
+
+    echo "======================================================================"
+    echo "Finished assembly"
    
 fi
-
 
 
 
