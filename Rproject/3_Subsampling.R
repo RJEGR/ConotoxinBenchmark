@@ -152,7 +152,7 @@ transratedf %>%
 
 
 calculate_metrics(transratedf, reference_coverage_val = 0.95) %>%
-  write_tsv(file = file.path(dir, "benchmark.tsv"))
+  write_tsv(file = file.path(dir, "subsampling_benchmark.tsv"))
 
 metricsdf <- calculate_metrics(transratedf, reference_coverage_val = 0.95) %>% 
   mutate(
@@ -244,7 +244,7 @@ summarise_strata <- function(data, strata = ...) {
 
 # (Quantitative): Proxy 1
 
-p2 <- transratedf %>% 
+DataViz <- transratedf %>% 
   drop_na() %>% 
   distinct(sampling_set, vfold_set, hits, reference_coverage) %>%
   # left_join(conoServerDB,by = "hits") %>%
@@ -253,18 +253,37 @@ p2 <- transratedf %>%
   mutate(summarise = ifelse(reference_coverage >= 0.9, ">= 90% alignment", summarise)) %>%
   mutate(summarise = ifelse(reference_coverage >= 0.95, ">= 95% alignment", summarise)) %>%
   mutate(summarise = ifelse(reference_coverage == 1, "100% alignment", summarise)) %>%
-  dplyr::count(sampling_set, vfold_set, summarise) %>% #genesuperfamily, 
-  # mutate()
+  dplyr::count(sampling_set, vfold_set, summarise)
+
+
+n_pallet <- length(unique(DataViz$summarise))
+
+scale_col <- ggsci::pal_uchicago()(n_pallet) 
+
+scale_col <- structure(scale_col, names = sort(unique(DataViz$summarise)))
+
+scale_fill <- ggsci::pal_uchicago(alpha = 0.5)(n_pallet) 
+
+scale_fill <- structure(scale_fill, names = sort(unique(DataViz$summarise)))
+
+
+p2 <- DataViz %>%
+  filter(summarise != "< 80 % alignment") %>%
   ggplot(aes(y = n, x = as.factor(sampling_set), color = summarise, fill = summarise)) +
   # geom_jitter(position = position_jitter(0.1), shape = 1) +
   stat_summary(fun.data=mean_sdl, geom="pointrange", shape = 1) + # position = position_jitter(0.25)
   labs(y = "Number of assembled conotoxins", x = "Sample size (Proportion of the sample)", caption = "3_Subsampling.R") +
   my_custom_theme(legend.text = element_text(size = 5)) +
-  ggsci::scale_color_uchicago(name = "") +
-  ggsci::scale_fill_uchicago(name = "", alpha = 0.5) 
+  scale_color_manual("",values = scale_col ) +
+  scale_fill_manual("",values = scale_fill)
+  # ggsci::scale_color_uchicago(scale_col) +
+  # ggsci::scale_fill_uchicago(name = "", alpha = 0.5) 
  
+p2
+
+
 ggsave(p2,
-    filename = 'Subsampling_boxplot.png', 
+    filename = 'Subsampling_boxplot_.png', 
     path = outdir, width = 5.5, height = 5, dpi = 1000, device = png)
 
   
