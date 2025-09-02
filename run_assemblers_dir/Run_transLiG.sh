@@ -20,8 +20,7 @@ echo "Executing: $call"
 
 eval $call
 
-
-f1=$(find "${OUTDIR}" -maxdepth 1 -type f -name 'TransLiG.fa')
+f1=$(find "${OUTDIR}/TransLiG_Out_Dir" -maxdepth 1 -type f -name 'TransLiG.fa')
 
 echo "Results of the assembly found at: $f1"
  
