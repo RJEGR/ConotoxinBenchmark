@@ -1,4 +1,7 @@
 #!/bin/bash
+#SBATCH --mem=100GB
+#SBATCH --ntasks-per-node=24
+#SBATCH -t 6-00:00:00
 
 while getopts "s:c:h" opt; do
     case $opt in
@@ -102,8 +105,6 @@ run_assembly_batches() {
     # Concatenate forward reads
     local call=$(awk '{print $2}' "$manifest" | tr "\n" " ")
     
-    #cat $call > "$forward_fq"
-
     # Filter out empty entries before concatenation
     for fq in $call; do [[ -n "$fq" ]] && echo "$fq"; done | xargs cat > "$forward_fq"
 
@@ -117,6 +118,8 @@ run_assembly_batches() {
 
     CPU=20
     MEM=100
+
+    local REFERENCE=$(awk '{print $4}' "$manifest")
 
     local FASTA_DIR="${manifest%.*}_FASTA_DIR"
 
@@ -145,11 +148,11 @@ run_assembly_batches() {
             
             mkdir -p "$OUTDIR"
 
-            call=$(eval echo $run_tool "$forward_fq" "$reverse_fq" "$OUTDIR" "$CPU" "$MEM" "$FASTA_DIR")         
+            call=$(eval echo $run_tool "$forward_fq" "$reverse_fq" "$OUTDIR" "$CPU" "$MEM" "$FASTA_DIR" "$REFERENCE")         
 
             echo "Executing: $call"
             
-            eval $call &> /dev/null
+            eval $call #&> /dev/null
 
             # write a chunk of code to check if any fasta file was creates in $OUTDIR, if true, touch "$chkp_file", else echo "No fasta file created in $OUTDIR, skipping checkpoint creation."
             
