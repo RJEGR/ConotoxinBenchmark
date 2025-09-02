@@ -278,6 +278,18 @@ nrow(Nodedf <- Nodedf %>% filter(nchar(sequence) >= 100))
 
 nrow(Nodedf %>% distinct(sequence))
 
+# Write FASTA from data ----
+
+fasta_file <- file.path(outdir, paste0("conoServerDB", ".fasta"))
+
+Nodedf %>%
+  pull(sequence, name = entry_id) %>%
+  Biostrings::DNAStringSet() %>%
+  # dedup_DNAStringSet()
+  Biostrings::writeXStringSet(fasta_file)
+
+# ===
+
 Nodedf %>% summarise(mean = mean(nchar(sequence)), sd = sd(nchar(sequence)))
 
 Nodedf %>% ggplot(aes(nchar(sequence))) +geom_histogram()
