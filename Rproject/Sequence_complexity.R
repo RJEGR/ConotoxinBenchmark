@@ -36,7 +36,7 @@ f <- list.files(path = outdir, pattern = "curated_nuc_conoServerDB.rds", full.na
 conoServerDB <- read_rds(f) 
 
 
-# 1) First split, diversity of sequnces based 1.0 identity 
+# 1) First clusterize sequence by similary identity (this will be usefull for index diversity estimation step)
 
 clusterize <- function(data, seq_type = "...") {
   
@@ -126,11 +126,11 @@ conoServerDB <- conoServerDB %>%
   left_join(sequence_df, by = "sequence") %>%
   left_join(proteinsequence_df, by = "proteinsequence")
 
-conoServerDB %>% dplyr::count(sequence_clus, sort = T)
-conoServerDB %>% dplyr::count(proteinsequence_clus, sort = T)
+# conoServerDB %>% dplyr::count(sequence_clus, sort = T)
+# conoServerDB %>% dplyr::count(proteinsequence_clus, sort = T)
 
-
-
+# 2) Estimate sequence-based Shannon entropy,  linguistic complexity, and lamda 
+# Load Entropy-based.R, see paper of position-specific diversity of amino acid for each conopeptide regions (
 
 # Based on the number of sequence clusters and the number of members within each cluster, you can estimate parameters related to protein family size, conservation, and diversity. These metrics provide a quantitative measure of the evolutionary and functional landscape of your dataset.
 
@@ -144,37 +144,10 @@ conoServerDB %>%
 
 # Protein Family Diversity: The total number of clusters is a direct measure of the number of distinct protein families in your dataset. A higher number of clusters relative to the total number of sequences indicates greater diversity.
 
-seq_type <- "sequence" # proteinsequence
-seq_name <- paste0(seq_type, "_", "clus")
-
-summarise_df <- conoServerDB %>%  
-  dplyr::rename("subject" = seq_type) %>% 
-  distinct(genesuperfamily, subject) %>%
-  dplyr::count(genesuperfamily, sort = T) %>%
-  dplyr::rename_("seq_number" = "n") 
-
-conoServerDB %>% 
-  distinct_at(c("genesuperfamily", seq_name)) %>%
-  dplyr::count(genesuperfamily, sort = T) %>%
-  dplyr::rename("clus_number" = "n") %>%
-  left_join(summarise_df, by = "genesuperfamily") %>%
-  mutate(genesuperfamily = gsub("superfamily", "", genesuperfamily)) %>%
-  mutate(genesuperfamily = gsub("Divergent ", "", genesuperfamily)) %>%
-  ggplot(aes(clus_number, seq_number, label = genesuperfamily )) + 
-  scale_x_log10() +
-  scale_y_log10() +
-  geom_point(shape = 1) +
-  ggrepel::geom_label_repel(max.overlaps = 100) +
-  my_custom_theme() +
-  labs(y = "Number of conotoxins (log10)", x = "Number of clusters (log10)", caption = "Sequence_complexity.R", subtitle = seq_type) 
-
-# Continue w/
-# write a chunk of code for Simpson's Diversity Index in r, for a given total number of protein families (clusters), number of sequences in the ith protein family, and thetotal number of sequences in your dataset.
-
-calculate_simpson_diversity <- function(family_members) {
+calculate_simpson_diversity <- function(family_members, number_sequeces) {
   # Calculate the total number of sequences (N).
   # This is the sum of all members across all families.
-  N <- sum(family_members)
+  N <- sum(number_sequeces)
   
   # Calculate the proportion (p_i) for each family.
   # This is the number of members in a family divided by the total number of sequences.
@@ -191,11 +164,59 @@ calculate_simpson_diversity <- function(family_members) {
   return(simpson_index)
 }
 
-summarise_df %>% 
-  # group_by(genesuperfamily) %>%
-  reframe(calculate_simpson_diversity(seq_number))
+seq_type <- "sequence" # proteinsequence
+seq_name <- paste0(seq_type, "_", "clus")
 
-calculate_simpson_diversity(summarise_df$seq_number)
+summarise_df <- conoServerDB %>%  
+  # mutate(genesuperfamily = ifelse(is.na(genesuperfamily), sequence_clus, genesuperfamily)) %>% 
+  dplyr::rename("subject" = seq_type) %>% 
+  distinct(genesuperfamily, subject) %>%
+  dplyr::count(genesuperfamily, sort = T) %>%
+  dplyr::rename("seq_number" = "n") 
+
+# calculate_simpson_diversity(summarise_df$seq_number)
+
+conoServerDB %>% 
+  distinct_at(c("genesuperfamily", seq_name)) %>%
+  dplyr::count(genesuperfamily, sort = T) %>%
+  dplyr::rename("clus_number" = "n") %>%
+  left_join(summarise_df, by = "genesuperfamily") %>%
+  mutate(genesuperfamily = gsub("superfamily", "", genesuperfamily)) %>%
+  mutate(genesuperfamily = gsub("Divergent ", "", genesuperfamily)) %>%
+  group_by(genesuperfamily) %>%
+  mutate(simpson_index = calculate_simpson_diversity(clus_number, seq_number)) %>%
+  ggplot(aes(clus_number, seq_number, label = genesuperfamily)) + 
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_point(shape = 1, aes(size = simpson_index)) +
+  ggrepel::geom_text_repel(max.overlaps = 100) +
+  my_custom_theme() +
+  labs(y = "Number of conotoxins (log10)", 
+    x = "Number of clusters (log10)", 
+    caption = "Sequence_complexity.R", subtitle = seq_type) 
+
+# Continue w/
+# write a chunk of code for Simpson's Diversity Index in r, for a given total number of protein families (clusters), number of sequences in the ith protein family, and thetotal number of sequences in your dataset.
+
+conoServerDB %>% 
+  distinct_at(c("genesuperfamily", seq_name)) %>%
+  dplyr::count(genesuperfamily, sort = T) %>%
+  dplyr::rename("clus_number" = "n") %>%
+  left_join(summarise_df, by = "genesuperfamily") %>%
+  group_by(genesuperfamily) %>%
+  mutate(simpson_index = calculate_simpson_diversity(clus_number, seq_number)) %>%
+  ungroup() %>% arrange(desc(simpson_index)) %>% 
+  mutate(genesuperfamily = factor(genesuperfamily, levels = unique(genesuperfamily))) %>%
+  ggplot(aes(y = genesuperfamily, x = simpson_index, alpha = seq_number)) +
+  geom_col() +
+  my_custom_theme()
+
+  # reframe(
+  #   family_members = clus_number, 
+  #   N = sum(seq_number), 
+  #   proportions = family_members / N,
+  #   sum_of_squares = sum(proportions^2),
+  #   simpson_index = (1 - sum_of_squares)) 
 
 # A value of 
 
@@ -228,3 +249,24 @@ calculate_simpson_diversity(summarise_df$seq_number)
 # testRes <- corrplot::cor.mtest(M, conf.level = 0.95)
 # 
 # corrplot::corrplot(M, p.mat = testRes$p ,method = "color", type="upper", order = "hclust", insig = "label_sig")
+
+
+# Entropy based 
+
+conoServerDB %>% 
+  distinct(entry_id, sequence) %>%
+  filter(!grepl("N", sequence)) %>%
+  mutate(entropy = calculate_custom_complexity(sequence))
+
+entropy <- sapply(conoServerDB$sequence, function(x) calculate_entropy(x))
+info_content <- sapply(conoServerDB$sequence, function(x) calculate_information_content(x))
+complexity <- sapply(conoServerDB$sequence, function(x) calculate_custom_complexity(x))
+
+identical(names(entropy), names(info_content))
+
+head(data.frame(sequence = names(entropy), entropy, info_content, complexity))
+
+dna_seq2 <- "AAAAAAAAAA" # High information content (highly conserved), but Null entropy
+calculate_entropy(dna_seq2)
+calculate_information_content(dna_seq2)
+calculate_custom_complexity(dna_seq2)
