@@ -70,3 +70,54 @@ kaks_results <- rbh2kaks(rbh_pairs)
 head(kaks_results)
 
 ```
+
+## Computes Smith-Waterman alignment scores between all sequences
+mmseqs clust: Computes a similarity clustering of a sequence database based on Smith
+Waterman alignment scores of the sequence pairs computed by mmseqs align.
+
+mmseqs align: Computes Smith-Waterman alignment scores between all sequences in the
+query database and the sequences of the target database whose prefiltering scores computed
+by mmseqs prefilter pass a minimum threshold.
+
+```bash
+cd ~/Documents/GitHub/ConotoxinBenchmark/INPUTS/
+
+RELEASE="${3:-$(date "+%Y_%m")}"
+INPUT=conoServerDB.fasta
+OUTDIR=`pwd`/$RELEASE
+OUTPUT=${INPUT%.*}_SWscores.tsv
+
+TMPDIR=$OUTDIR/tmp
+mkdir -p $TMPDIR
+
+#OUTDIR=$(abspath $OUTDIR)
+#TMPDIR=$(abspath $TMPDIR)
+
+SEQUENCE_DB="${OUTDIR}/${INPUT%.*}_db"
+
+mmseqs createdb "$INPUT" "${SEQUENCE_DB}"
+INPUT="${SEQUENCE_DB}"
+mmseqs clusthash $INPUT "$TMPDIR/aln_redundancy" --min-seq-id 1
+
+date ${DATE}
+mmseqs clust $INPUT "$TMPDIR/aln_redundancy" "$TMPDIR/clu_redundancy" ${CLUSTER1_PAR}
+mmseqs createsubdb "$TMPDIR/clu_redundancy" $INPUT "$TMPDIR/input_step0"
+
+STEP=0
+INPUT="$TMPDIR/input_step0" 
+
+mmseqs prefilter "$INPUT" "$INPUT" "$TMPDIR/pref_step$STEP"
+
+ALIGNMENT_COMMON="$COMMON -e 0.001 --max-seq-len 65535 --max-rejected 2147483647"
+ALIGNMENT0_PAR="--alignment-mode 0 --min-seq-id 0 --comp-bias-corr 0 ${ALIGNMENT_COMMON}"
+
+# ${ALIGNMENT0_PAR}
+
+mmseqs align "$INPUT" "$INPUT" "$TMPDIR/pref_step$STEP" "$TMPDIR/aln_step$STEP" 
+mmseqs convertalis $INPUT $INPUT "$TMPDIR/aln_step$STEP" $OUTPUT
+
+
+# The file is formatted as a tab-separated list with 12 columns: (1,2) identifiers for query and target
+sequences/profiles, (3) sequence identity, (4) alignment length, (5) number of mismatches, (6) number of gap openings, (7-8, 9-10) domain start and end-position in query and in target, (11) E-value,
+and (12) bit score.
+```
