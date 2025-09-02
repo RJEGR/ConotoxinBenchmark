@@ -248,3 +248,13 @@ fi
 rm -rf transrate_tmp_dir
 
 exit
+
+
+for i in $(ls *txt); do
+    echo "Processing manifest: $i"
+    bs=${i%.*}
+    query=${bs}"_TRANSLIG_dir/TransLiG_Out_Dir/TransLiG.fa"
+    call="./Accuracy.sh -s $i -d $query -m reference"
+    echo $call
+    eval $call 
+done
