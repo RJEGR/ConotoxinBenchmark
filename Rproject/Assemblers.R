@@ -141,17 +141,19 @@ transratedf <- lapply(file_list, read_transrate_scores)
 transratedf <- do.call(rbind,transratedf)
 
 transratedf <- transratedf %>% 
-  mutate(rel_path = basename(dirname(rel_path))) %>%
+  # mutate(rel_path = basename(dirname(rel_path))) %>%
+  mutate(rel_path = sapply(strsplit(dirname(rel_path), "/"), `[`, 3)) %>%
   mutate(vfold_set = sapply(strsplit(rel_path, "_"), `[`, 1)) %>%
   mutate(Assembler = sapply(strsplit(rel_path, "_"), `[`, 5))
 
 transratedf %>%
-  group_by(vfold_set, Assembler) %>%
-  dplyr::count()  %>% view()
+  group_by(Assembler) %>%
+  dplyr::count()  
 
-transratedf %>% 
-  group_by(vfold_set, Assembler) %>%
-  calculate_metrics(reference_coverage_val = 0.95) #%>%
+
+# transratedf %>% 
+#   group_by(vfold_set, Assembler) %>%
+#   calculate_metrics(reference_coverage_val = 0.95) #%>%
   # write_tsv(file = file.path(dir, "benchmark.tsv"))
 
 metricsdf <- transratedf %>% 
@@ -197,10 +199,35 @@ p1 <- metricsdf %>%
   my_custom_theme()
 
 
-# p1
+p1
 
 ggsave(p1, filename = 'Assemblers.png', 
   path = outdir, width = 7, height = 5, dpi = 1000, device = png)
+
+# Inner join of conotoxins, and assemblers,
+
+library(ggVennDiagram)
+
+upsetdf <- transratedf %>% 
+  filter(!is.na(hits)) %>%
+  filter(reference_coverage > 0.95) %>%
+  distinct(Assembler, hits) #%>%
+  # group_by(hits) %>%
+  # summarise(across(Assembler, .fns = list), n = n()) 
+
+gene2ven <- split(upsetdf$hits, upsetdf$Assembler)
+
+gene2ven <- lapply(gene2ven, unlist)
+
+keep <- names(gene2ven) %in% c("SPADES", "TRINITY", "PLASS")
+
+ggVennDiagram(gene2ven[keep],label_font = "GillSans", label_size = 5,
+  relative_height = 0.5,relative_width = 0.8, force_upset = F) +
+scale_fill_gradient(low="grey90",high = "red")
+
+ggVennDiagram(gene2ven,label_font = "GillSans", label_size = 7,
+  relative_height = 1,relative_width = 2, force_upset = T) 
+  # scale_fill_gradient(low="grey90",high = "red",)
 
 
 # file_out <- file.path(outdir, "transrate_assemblers.rds")
