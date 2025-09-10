@@ -204,6 +204,11 @@ p1
 ggsave(p1, filename = 'Assemblers.png', 
   path = outdir, width = 7, height = 5, dpi = 1000, device = png)
 
+
+metricsdf %>%
+  ggplot(aes(TP, Precision)) + 
+  geom_point()
+
 # Inner join of conotoxins, and assemblers,
 
 library(ggVennDiagram)
@@ -219,7 +224,7 @@ gene2ven <- split(upsetdf$hits, upsetdf$Assembler)
 
 gene2ven <- lapply(gene2ven, unlist)
 
-keep <- names(gene2ven) %in% c("SPADES", "TRINITY", "PLASS")
+keep <- names(gene2ven) %in% c("SPADES", "TRINITY", "PLASS", "STRINGTIE")
 
 ggVennDiagram(gene2ven[keep],label_font = "GillSans", label_size = 5,
   relative_height = 0.5,relative_width = 0.8, force_upset = F) +
@@ -234,6 +239,37 @@ ggVennDiagram(gene2ven,label_font = "GillSans", label_size = 7,
 
 # write_rds(transratedf, file = file_out)
 
+# According to Cahis et al., 2012
+# By assembler, assess/Classify hits, to fragmented, chimeric, allelic, paralogue, and other genomic, based on overlap -----
+
+# Fragmented: 
+# Contigs with a single significant hit shared by other contigs were called (allele)
+
+# (Quimera or multi) Contigs with several significant hits, all specific to this contig, were called
+
+summarise_df <- transratedf %>% 
+  filter(!is.na(hits)) %>%
+  filter(reference_coverage > 0.5) %>%
+  mutate(summarise = "< 80 % alignment") %>%
+  mutate(summarise = ifelse(reference_coverage >= 0.8, ">= 80% alignment", summarise)) %>%
+  mutate(summarise = ifelse(reference_coverage >= 0.9, ">= 90% alignment", summarise)) %>%
+  mutate(summarise = ifelse(reference_coverage >= 0.95, ">= 95% alignment", summarise)) %>%
+  mutate(summarise = ifelse(reference_coverage == 1, "100% alignment", summarise)) %>%
+  group_by(summarise, Assembler, vfold_set) 
+
+summarise_df %>%
+  dplyr::count(hits, sort = T) %>%
+  dplyr::rename("allele" = "n")
+
+# Not possible to evals quimera or multi from this perspective...
+
+summarise_df %>%
+  dplyr::count(contig_name, sort = T) %>%
+  dplyr::rename("allele" = "n")
+
+quit()
+
+# transratedf %>% 
 
 true_contigs_db <- transratedf %>% filter(!is.na(hits)) 
 
