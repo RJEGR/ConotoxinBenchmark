@@ -167,7 +167,7 @@ run_assembly_batches() {
                 rm -fr "$OUTDIR"
 
             else
-                echo "No fasta file created in $OUTDIR, skipping checkpoint creation."
+                echo "No fasta file created in $FASTA_DIR, skipping checkpoint creation."
                 echo "Saving outputs in issues_dir directory for further investigation."
                 mkdir -p issues_dir
                 mv "$OUTDIR" issues_dir
