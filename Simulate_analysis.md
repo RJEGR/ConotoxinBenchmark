@@ -26,7 +26,7 @@ Additonal output generated from the step 1 are depth files where coverage for ev
 One of the null-hypothesis to test relly whether or not the assembler method have an effect in precision to assembly conotoxins. Thereby, this step evaluate the precision of the assembly method using the simulated data set. To do that, we used the script `Assemblers.sh` to run the analysis using the simulated data set. This step requieres a configuration file where each line specifies an individual tool and its run-command in the format 'tool=command'. See the `run.config` file for an example. Also 
  
 ```bash
-Assemblers.sh -s all -c run.config
+./Assemblers.sh -s all -c run.config
 #sbatch run_assembly_batches.sh
 ```
 
