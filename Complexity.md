@@ -80,7 +80,7 @@ query database and the sequences of the target database whose prefiltering score
 by mmseqs prefilter pass a minimum threshold.
 
 ```bash
-cd ~/Documents/GitHub/ConotoxinBenchmark/INPUTS/
+cd ~/Documents/GitHub/ConotoxinBenchmark/INPUTS/SmithWaterman_dir
 
 RELEASE="${3:-$(date "+%Y_%m")}"
 INPUT=conoServerDB.fasta
