@@ -171,7 +171,7 @@ DataViz <- transratedf %>%
   drop_na() %>% 
   distinct(sampling_set, vfold_set, hits, reference_coverage) %>%
   # left_join(conoServerDB,by = "hits") %>%
-  # mutate(summarise = "< 80 % alignment") %>%
+  mutate(summarise = "< 80 % alignment") %>%
   mutate(summarise = ifelse(reference_coverage >= 0.8, ">= 80% alignment", summarise)) %>%
   mutate(summarise = ifelse(reference_coverage >= 0.9, ">= 90% alignment", summarise)) %>%
   mutate(summarise = ifelse(reference_coverage >= 0.95, ">= 95% alignment", summarise)) %>%
