@@ -23,9 +23,13 @@ which penguin
 
 eval $call
 
-# --contig-output-mode 0
+# --rescore-mode 2
+# --min-seq-id 0.9
 
 call="penguin nuclassemble $forward_fq $reverse_fq  $OUTDIR/transcripts_penguin.fa $OUTDIR/tmp --threads $CPU --min-contig-len 100"
+
+#call="penguin nuclassemble $forward_fq $reverse_fq  $OUTDIR/transcripts_penguin.fa $OUTDIR/tmp --threads $CPU --min-contig-len 100 --rescore-mode 2 --min-seq-id 0.9"
+
 
 echo "Executing: $call" 
 eval $call
