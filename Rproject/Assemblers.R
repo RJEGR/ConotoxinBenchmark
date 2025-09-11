@@ -49,18 +49,47 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
   
   calculate_false <- function(df) {
     
-    InputNsequences <- c(Fold01=1615,
-      Fold02=1614,
-      Fold03=1621,
-      Fold04=1618,
-      Fold05=1616,
-      Fold06=1619,
-      Fold07=1614,
-      Fold08=1617,
-      Fold09=1616,
-      Fold10=1614,
-      Fold11=1617,
-      Fold12=1619)
+    # as many assemblers use width 200 to filter contigs, count number of refseq > 200
+    # InputNsequences <- c(
+    #   Fold01=1615,
+    #   Fold02=1614,
+    #   Fold03=1621,
+    #   Fold04=1618,
+    #   Fold05=1616,
+    #   Fold06=1619,
+    #   Fold07=1614,
+    #   Fold08=1617,
+    #   Fold09=1616,
+    #   Fold10=1614,
+    #   Fold11=1617,
+    #   Fold12=1619)
+    
+    
+    count_Nsequences <- function() {
+      
+      # Temporal directory where vfolds_resampling_dir are found
+      
+      outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/vfolds_resampling_dir/"
+      
+      f <- list.files(path = outdir, pattern = ".fasta", full.names = T)
+      
+      my_func <- function(x) { 
+        
+        dna <- Biostrings::readDNAStringSet(x)
+        
+        structure(
+          sum(Biostrings::width(dna) >=200), 
+          names = gsub(".fasta", "", basename(x)))
+        
+        
+      }
+      
+      unlist(lapply(f, my_func))
+      
+    }
+    
+    
+    InputNsequences <- count_Nsequences()
     
     # False Negatives (FN): Transcripts present in the simulated data but not assembled. 
     ## TP - (N reference sequences in InputNsequences) 
@@ -150,6 +179,12 @@ transratedf %>%
   group_by(Assembler) %>%
   dplyr::count()  
 
+transratedf %>%
+  group_by(Assembler) %>%
+  summarise(mean = mean(length), min = min(length), max = max(length))
+  # ggplot(aes(length)) +
+  # facet_grid(Assembler ~., scales = "free", space = "free") +
+  # geom_histogram()
 
 # transratedf %>% 
 #   group_by(vfold_set, Assembler) %>%
@@ -157,6 +192,7 @@ transratedf %>%
   # write_tsv(file = file.path(dir, "benchmark.tsv"))
 
 metricsdf <- transratedf %>% 
+  filter(length>=200) %>%
   group_by(vfold_set, Assembler) %>%
   calculate_metrics(reference_coverage_val = 0.95) %>% 
   mutate(
@@ -201,7 +237,7 @@ p1 <- metricsdf %>%
 
 p1
 
-ggsave(p1, filename = 'Assemblers.png', 
+ggsave(p1, filename = 'Assemblers_.png', 
   path = outdir, width = 7, height = 5, dpi = 1000, device = png)
 
 
