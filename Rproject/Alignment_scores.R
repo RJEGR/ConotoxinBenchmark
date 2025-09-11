@@ -59,6 +59,19 @@ names(df) <- col_names
 
 df <- df %>% filter(identity != 1)
 
+query <- unique(df$query)
+target <- unique(df$target)
+
+Nodes <- unique(sort(c(query, target)))
+
+length(Nodes)
+length(conoServerDB$entry_id)
+
+sum(conoServerDB$entry_id %in% Nodes)
+
+# numbers are not matching
+
+
 # Summarise: The percentage of identity was computed using the length of the smallest sequences
 # 1) minimun percentage of sequence identitited computed within sequences belonging to the same gene sf (diagonal)
 # 2) the maximum percentage identities measured between sequences of gene sf belonging to different gene sf (rest of diagonal)
