@@ -164,6 +164,26 @@ run_reference_transrate() {
 
             mv "$contig_file" "$dst"
         done
+
+   
+    echo "Copying blast outputs for further inspection"
+
+    mkdir transrate_contigs_dir/blast_outputs
+
+    find "transrate_tmp_dir/$TRANSRATE_DIR" -name "*[0-9].blast"| while read -r blast_file; do
+
+            dst="transrate_contigs_dir/blast_outputs/${blast_file#transrate_tmp_dir}"
+            
+            echo $dst
+            
+            mkdir -p "$(dirname "$dst")"
+            
+            echo "Moving $blast_file to $dst"
+
+            mv "$blast_file" "$dst"
+        done
+
+    #cat "transrate_tmp_dir/$TRANSRATE_DIR"/*.blast > transrate_contigs_dir/blast_outputs/${QUERY%.*}.blast
     
 
 }
@@ -249,12 +269,22 @@ rm -rf transrate_tmp_dir
 
 exit
 
+#!/bin/bash
+#SBATCH --job-name=transrate_coverage
+#SBATCH -N 1
+#SBATCH --mem=100GB
+#SBATCH --ntasks-per-node=24
+#SBATCH -t 6-00:00:00
+#SBATCH -o out.%J
+#SBATCH -e err.%J
 
-for i in $(ls *txt); do
+for i in $(ls *fa); do
     echo "Processing manifest: $i"
-    bs=${i%.*}
-    query=${bs}"_TRANSLIG_dir/TransLiG_Out_Dir/TransLiG.fa"
-    call="./Accuracy.sh -s $i -d $query -m reference"
+    manifest=${i%_*}.txt
+
+    call="./Accuracy.sh -s $manifest -d $i -m reference"
     echo $call
-    eval $call 
+    eval $call
 done
+
+exit
