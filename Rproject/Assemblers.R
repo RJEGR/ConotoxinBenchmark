@@ -31,16 +31,23 @@ my_custom_theme <- function(...) {
 read_transrate_scores <- function(file_list) {
   
   # dir <- dirname(dir)
+  rel_path <- str_remove(file_list, paste0("^", dir, "/"))
   
   cat("\nReading\n")
-  cat(str_remove(file_list, paste0("^", dir, "/")))
+  cat(rel_path)
   cat("\n")
   
+  rel_path <- sapply(strsplit(dirname(rel_path), "/"), `[`, 1)
+  vfold_set <- sapply(strsplit(rel_path, "_"), `[`, 1)
+  Assembler <- sapply(strsplit(rel_path, "_"), `[`, 5)
+  
+  cat("\n")
+  cat(vfold_set, Assembler)
+  cat("\n")
+
   read_csv(file_list) %>%
     # mutate(file_list = file_list)
-    mutate(rel_path = str_remove(file_list, paste0("^", dirname(dir), "/"))) # %>%
-  # separate(rel_path, into = c("subdir1", "subdir2", "filename"), sep = "/", extra = "merge") %>%
-  # select(-filename)
+    mutate(rel_path, vfold_set, Assembler)
 }
 
 calculate_metrics <- function(df, reference_coverage_val = 1) {
@@ -155,6 +162,7 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
   
 }
 
+
 outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
 
 f <- list.files(path = outdir, pattern = "curated_nuc_conoServerDB.rds", full.names = T)
@@ -165,15 +173,10 @@ dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/1_assembly/transrate_co
 
 str(file_list <- list.files(path = dir, pattern = "contigs.csv", recursive = T, full.names = TRUE))
 
+
 transratedf <- lapply(file_list, read_transrate_scores)
 
 transratedf <- do.call(rbind,transratedf)
-
-transratedf <- transratedf %>% 
-  # mutate(rel_path = basename(dirname(rel_path))) %>%
-  mutate(rel_path = sapply(strsplit(dirname(rel_path), "/"), `[`, 3)) %>%
-  mutate(vfold_set = sapply(strsplit(rel_path, "_"), `[`, 1)) %>%
-  mutate(Assembler = sapply(strsplit(rel_path, "_"), `[`, 5))
 
 transratedf %>%
   group_by(Assembler) %>%
@@ -278,10 +281,31 @@ ggVennDiagram(gene2ven,label_font = "GillSans", label_size = 7,
 # According to Cahis et al., 2012
 # By assembler, assess/Classify hits, to fragmented, chimeric, allelic, paralogue, and other genomic, based on overlap -----
 
+
+dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/1_assembly/blast_outputs/"
+
+str(f <- list.files(path = dir, pattern = "1.blast", recursive = T, full.names = TRUE))
+
+
+blast_df <- read_outfmt6(f[1])
+
+# blast_df <- do.call(rbind, lapply(f, read_outfmt6))
+
+# Hits were con- sidered significant when (i) the alignment length (merg- ing all high-scoring segments pairs) was at least 70% of the query sequence or at least 70% of the hit sequence, and (ii) sequence identity between query and hit was more than 70% across the aligned portion.
+
 # Fragmented: 
 # Contigs with a single significant hit shared by other contigs were called (allele)
 
+blast_df %>% 
+  filter(identity >= 95) %>%
+  group_by(db) %>%
+  dplyr::count(target, sort = T) %>%
+  mutate()
+  # dplyr::rename("allele" = "n") 
+
 # (Quimera or multi) Contigs with several significant hits, all specific to this contig, were called
+
+
 
 summarise_df <- transratedf %>% 
   filter(!is.na(hits)) %>%
@@ -293,15 +317,7 @@ summarise_df <- transratedf %>%
   mutate(summarise = ifelse(reference_coverage == 1, "100% alignment", summarise)) %>%
   group_by(summarise, Assembler, vfold_set) 
 
-summarise_df %>%
-  dplyr::count(hits, sort = T) %>%
-  dplyr::rename("allele" = "n")
 
-# Not possible to evals quimera or multi from this perspective...
-
-summarise_df %>%
-  dplyr::count(contig_name, sort = T) %>%
-  dplyr::rename("allele" = "n")
 
 quit()
 
