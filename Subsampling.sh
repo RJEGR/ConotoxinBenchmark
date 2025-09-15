@@ -47,6 +47,7 @@ run_trinity() {
     local forward_fq="$1"
     local reverse_fq="$2"
     local output="$3"
+    local final_fasta="$4"
 
     output_dir=${output}/Trinity_out_dir # Trinity_out_dir prefix is mandatory for Trinity
 
@@ -55,6 +56,48 @@ run_trinity() {
     echo $call
     
     eval $call
+
+    f1=$(find "${output}" -type f -name 'Trinity_out_dir.Trinity.fasta')
+    if [[ ! -f "$f1" ]]; then
+        f1=$(find "${output}" -type f -name 'Trinity.tmp.fasta')
+    fi
+
+    echo "Results of the assembly found at: $f1"
+
+    movecall="mv $f1 $final_fasta"
+   
+    echo $movecall
+   
+    eval $movecall
+
+}
+
+run_spades() {
+    EXPORT=/LUSTRE/apps/bioinformatica/SPAdes-3.15.5-Linux/bin/
+    export PATH=$PATH:$EXPORT
+
+    local forward_fq="$1"
+    local reverse_fq="$2"
+    local output="$3"
+    local final_fasta="$4"
+
+    call="rnaspades.py -1 $forward_fq -2 $reverse_fq  -o $output -t 24 -m 100"
+
+    echo $call
+    
+    eval $call
+
+    f1=$(find "${output}" -maxdepth 1 -type f -name 'transcripts.fasta') 
+
+    echo "Results of the assembly found at: $f1"
+
+
+    movecall="mv $f1 $final_fasta"
+
+    echo $movecall
+
+    eval $movecall
+
 }
 
 run_reference_transrate() {
@@ -135,6 +178,8 @@ subsampling_assembly() {
     
     eval $mkdircall
 
+    final_fasta=$FASTA_DIR/${bs}_${Prop}.fa
+
     local forward_fq="${OUTDIR}/${bs}_concat_PE1.fq"
     
     local reverse_fq="${OUTDIR}/${bs}_concat_PE2.fq"
@@ -155,32 +200,18 @@ subsampling_assembly() {
     seqkit sample --proportion $Prop --rand-seed 123 -o $forward_sampled_fq $forward_fq
     seqkit sample --proportion $Prop --rand-seed 123 -o $reverse_sampled_fq $reverse_fq
 
-    #call="Run_trinity.sh $forward_sampled_fq $reverse_sampled_fq $OUTDIR 20 100"
+    #call="run_trinity $forward_sampled_fq $reverse_sampled_fq $OUTDIR"
 
-    call="run_trinity $forward_sampled_fq $reverse_sampled_fq $OUTDIR"
+    #call="run_trinity $forward_sampled_fq $reverse_sampled_fq $OUTDIR $final_fasta"
+
+    call="run_spades $forward_sampled_fq $reverse_sampled_fq $OUTDIR $final_fasta"
+
 
     echo "Running $call"
     
-    eval $call &> /dev/null
+    eval $call #&> /dev/null
 
     echo "Finishing $call"
-
-    f1=$(find "${OUTDIR}" -type f -name 'Trinity_out_dir.Trinity.fasta')
-    if [[ ! -f "$f1" ]]; then
-        f1=$(find "${OUTDIR}" -type f -name 'Trinity.tmp.fasta')
-    fi
-
-    echo "Results of the assembly found at: $f1"
-   
-    final_fasta=$FASTA_DIR/${bs}_${Prop}.fa
-
-    movecall="mv $f1 $final_fasta"
-   
-    #echo "moving file $f1"
-
-    echo $movecall
-   
-    eval $movecall
 
 
     rm -f $forward_fq
@@ -189,7 +220,7 @@ subsampling_assembly() {
     rm -f $forward_sampled_fq 
     rm -f $reverse_sampled_fq
 
-    rm -rf $OUTDIR/Trinity_out_dir
+    rm -rf $OUTDIR
 
     echo "..."
     echo "Finished subsampling and assembly for proportion $Prop in directory $OUTDIR"
@@ -230,74 +261,3 @@ rm -fr transrate_tmp_dir
 
 
 exit
-
-#subsampling_assembly "$manifest" "0.1" "$out_dir"
-#subsampling_assembly "$manifest" "0.2" "$out_dir"
-#subsampling_assembly "$manifest" "0.3" "$out_dir"
-subsampling_assembly "$manifest" "0.3" "$out_dir"
-subsampling_assembly "$manifest" "0.4" "$out_dir"
-subsampling_assembly "$manifest" "0.5" "$out_dir"
-subsampling_assembly "$manifest" "0.6" "$out_dir"
-subsampling_assembly "$manifest" "0.7" "$out_dir"
-subsampling_assembly "$manifest" "0.8" "$out_dir"
-subsampling_assembly "$manifest" "0.9" "$out_dir"
-subsampling_assembly "$manifest" "1" "$out_dir"
-
-
-
-make_subsamples() {
-    
-    local manifest="$1"
-    local outdir_flag="$2"
-
-    if [[ -z "$outdir_flag" ]]; then
-        # local random_string="${manifest}_${Prop}"
-        local random_string="${manifest}_$(date +%d%m%y)" 
-        md5sum=$(echo -n "$random_string" | md5sum | awk '{print $1}')
-        outdir_flag="${md5sum}_dir"
-        # outdir="$(echo -n "$random_string" | md5sum | awk '{print $1"_dir"}')"
-    fi
-
-    for P in $(seq 0.1 0.1 1); do
-        echo "Processing proportion: $P ======================"
-        call="subsampling_assembly \"$manifest\" \"$P\" \"$outdir_flag\""
-        echo "Executing: $call"
-        eval "$call"
-    done
-}
-
- 
-if [[ "$manifest" == "all" ]]; then
-    echo "Running assembly for all manifests matching the pattern. ======================"
-    
-    find "$PWD" -maxdepth 1 -name '*.txt' | while read -r MANIFESTBATCH; do 
-         
-         echo "Executing: analysis for $MANIFESTBATCH"
-
-         echo "Executing: analysis for $MANIFESTBATCH"
-         echo "Executing: make_subsamples \"$MANIFESTBATCH\" \"$OUTPUT_DIR\""
-         make_subsamples "$MANIFESTBATCH" "$OUTPUT_DIR"
-    done
-else
-    echo "Running assembly for the specified manifest..."
-    echo "Executing: make_subsamples \"$manifest\" \"$OUTPUT_DIR\""
-    make_subsamples "$manifest" "$OUTPUT_DIR"
-   
-fi
-
-
-
-# evals example
-
-All commands completed successfully. :-)
-
-** Harvesting all assembled transcripts into a single multi-fasta file...
-
-Saturday, August 23, 2025: 08:29:03	CMD: find /LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/2_subsampling_dir/test_issue_dir/Fold01_200x_PE_samples_dir/Fold01_200x_PE_samples_0.2_dir/Trinity_out_dir/read_partitions/ -name '*inity.fasta'  | /LUSTRE/apps/bioinformatica/trinityrnaseq-v2.15.1/util/support_scripts/partitioned_trinity_aggregator.pl --token_prefix TRINITY_DN --output_prefix /LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/2_subsampling_dir/test_issue_dir/Fold01_200x_PE_samples_dir/Fold01_200x_PE_samples_0.2_dir/Trinity_out_dir/Trinity.tmp
-* [Sat Aug 23 08:29:04 2025] Running CMD: /LUSTRE/apps/bioinformatica/trinityrnaseq-v2.15.1/util/support_scripts/salmon_runner.pl Trinity.tmp.fasta /LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/2_subsampling_dir/test_issue_dir/Fold01_200x_PE_samples_dir/Fold01_200x_PE_samples_0.2_dir/Trinity_out_dir/both.fa 24
-* [Sat Aug 23 08:29:07 2025] Running CMD: /LUSTRE/apps/bioinformatica/trinityrnaseq-v2.15.1/util/support_scripts/filter_transcripts_require_min_cov.pl Trinity.tmp.fasta /LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/2_subsampling_dir/test_issue_dir/Fold01_200x_PE_samples_dir/Fold01_200x_PE_samples_0.2_dir/Trinity_out_dir/both.fa salmon_outdir/quant.sf 2 > /LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/2_subsampling_dir/test_issue_dir/Fold01_200x_PE_samples_dir/Fold01_200x_PE_samples_0.2_dir/Trinity_out_dir.Trinity.fasta
-
-
-#############################################################################
-Finished.  Final Trinity assemblies are written to /LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/2_subsampling_dir/test_issue_dir/Fold01_200x_PE_samples_dir/Fold01_200x_PE_samples_0.2_dir/Trinity_out_dir.Trinity.fasta
-#############################################################################
