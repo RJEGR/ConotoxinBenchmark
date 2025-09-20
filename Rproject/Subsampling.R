@@ -44,24 +44,54 @@ read_transrate_scores <- function(file_list) {
     # select(-filename)
 }
 
+
 calculate_metrics <- function(df, reference_coverage_val = 1) {
   
   is_chimeric_value = 0
   
   calculate_false <- function(df) {
     
-    InputNsequences <- c(Fold01=1615,
-    Fold02=1614,
-    Fold03=1621,
-    Fold04=1618,
-    Fold05=1616,
-    Fold06=1619,
-    Fold07=1614,
-    Fold08=1617,
-    Fold09=1616,
-    Fold10=1614,
-    Fold11=1617,
-    Fold12=1619)
+    # as many assemblers use width 200 to filter contigs, count number of refseq > 200
+    # InputNsequences <- c(
+    #   Fold01=1615,
+    #   Fold02=1614,
+    #   Fold03=1621,
+    #   Fold04=1618,
+    #   Fold05=1616,
+    #   Fold06=1619,
+    #   Fold07=1614,
+    #   Fold08=1617,
+    #   Fold09=1616,
+    #   Fold10=1614,
+    #   Fold11=1617,
+    #   Fold12=1619)
+    
+    
+    count_Nsequences <- function() {
+      
+      # Temporal directory where vfolds_resampling_dir are found
+      
+      outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/vfolds_resampling_dir/"
+      
+      f <- list.files(path = outdir, pattern = ".fasta", full.names = T)
+      
+      my_func <- function(x) { 
+        
+        dna <- Biostrings::readDNAStringSet(x)
+        
+        structure(
+          sum(Biostrings::width(dna) >=200), 
+          names = gsub(".fasta", "", basename(x)))
+        
+        
+      }
+      
+      unlist(lapply(f, my_func))
+      
+    }
+    
+    
+    InputNsequences <- count_Nsequences()
     
     # False Negatives (FN): Transcripts present in the simulated data but not assembled. 
     ## TP - (N reference sequences in InputNsequences) 
@@ -74,9 +104,10 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
     
   }
   
-
+  
   Totaldf <- df %>% 
-    dplyr::count(vfold_set, sampling_set)  %>% 
+    # dplyr::count(vfold_set, sampling_set)  %>% 
+    dplyr::count() %>%
     dplyr::rename("rawcontigs" = "n")
   
   # True Positives (TP): Transcripts correctly assembled by the assembler. 
@@ -84,9 +115,8 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
   
   TP <- df %>%
     filter(reference_coverage >= reference_coverage_val) %>%
-    # Use distinct to trim redundancy between contig hits
-    # distinct(hits, Superfamily, subdir1, subdir2) %>%
-    dplyr::count(vfold_set, sampling_set)  %>% 
+    # dplyr::count(vfold_set, sampling_set)  %>% 
+    dplyr::count() %>%
     dplyr::rename("TP" = "n")
   
   # False Positives (FP): Transcripts incorrectly assembled by the assembler.
@@ -95,10 +125,11 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
   FP <- df %>%
     mutate(reference_coverage = ifelse(is.na(hits) & is.na(reference_coverage), 0, reference_coverage )) %>%
     filter(reference_coverage > is_chimeric_value &  reference_coverage < reference_coverage_val)  %>%
-    dplyr::count(vfold_set, sampling_set) %>% 
+    # dplyr::count(vfold_set, sampling_set) %>% 
+    dplyr::count() %>%
     dplyr::rename("FP" = "n")
   
-
+  
   # Dealing with Overestimate contig number
   # No hay manera de usar estos como TN,
   # contigs where reference_coverage == 0, OR
@@ -110,7 +141,8 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
     # mutate_all(~replace(., is.na(.), 0)) %>%
     filter(reference_coverage <= is_chimeric_value) %>%
     # filter(is.na(hits)) %>%
-    dplyr::count(vfold_set, sampling_set) %>%
+    # dplyr::count(vfold_set, sampling_set) %>%
+    dplyr::count() %>%
     dplyr::rename("TN" = "n")
   
   
@@ -124,7 +156,6 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
   
   
 }
-
 # Reading conoServer info
 
 outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
@@ -133,28 +164,44 @@ f <- list.files(path = outdir, pattern = "curated_nuc_conoServerDB.rds", full.na
 
 conoServerDB <- read_rds(f) %>% dplyr::rename("hits" = "entry_id")
 
-dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir/transrate_contigs_dir/"
+dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir/Trinity_dir/transrate_contigs_dir/"
 
-str(file_list <- list.files(path = dir, pattern = "contigs.csv", recursive = T, full.names = TRUE))
+read_files <- function(dir, Assembly = ...) {
+  
+  file_list <- list.files(path = dir, pattern = "contigs.csv", recursive = T, full.names = TRUE)
+  
+  transratedf <- lapply(file_list, read_transrate_scores)
+  
+  transratedf <- do.call(rbind,transratedf)
+  
+  transratedf %>% 
+    mutate(rel_path = basename(dirname(rel_path))) %>%
+    mutate(vfold_set = sapply(strsplit(rel_path, "_"), `[`, 1)) %>%
+    mutate(sampling_set = sapply(strsplit(rel_path, "_"), `[`, 5)) %>%
+    mutate(sampling_set = as.double(sampling_set)) %>%
+    mutate(Assembly = Assembly)
+}
 
-transratedf <- lapply(file_list, read_transrate_scores)
+transratedf <- read_files(dir, Assembly = "Trinity")
 
-transratedf <- do.call(rbind,transratedf)
 
-transratedf <- transratedf %>% 
-  mutate(rel_path = basename(dirname(rel_path))) %>%
-  mutate(vfold_set = sapply(strsplit(rel_path, "_"), `[`, 1)) %>%
-  mutate(sampling_set = sapply(strsplit(rel_path, "_"), `[`, 5)) %>%
-  mutate(sampling_set = as.double(sampling_set))
+dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir/Spades_dir/transrate_contigs_dir/"
+
+
+transratedf2 <- read_files(dir, Assembly = "Spades")
+
+transratedf <- read_files(dir, Assembly = "Spades") %>% rbind(transratedf)
 
 transratedf %>%
-  dplyr::count(rel_path, vfold_set, sampling_set)  
+  dplyr::count(rel_path, vfold_set, sampling_set, Assembly) 
 
+# calculate_metrics(transratedf, reference_coverage_val = 0.95) %>%
+#   write_tsv(file = file.path(dir, "subsampling_benchmark.tsv"))
 
-calculate_metrics(transratedf, reference_coverage_val = 0.95) %>%
-  write_tsv(file = file.path(dir, "subsampling_benchmark.tsv"))
-
-metricsdf <- calculate_metrics(transratedf, reference_coverage_val = 0.95) %>% 
+metricsdf <- transratedf %>% 
+  filter(length>=200) %>%
+  group_by(vfold_set, sampling_set, Assembly) %>%
+  calculate_metrics(reference_coverage_val = 0.95) %>% 
   mutate(
     Ratio = TP/FP,
     # Tell us what percentage of positive classes were correctly identified
@@ -169,14 +216,14 @@ metricsdf <- calculate_metrics(transratedf, reference_coverage_val = 0.95) %>%
 
 DataViz <- transratedf %>% 
   drop_na() %>% 
-  distinct(sampling_set, vfold_set, hits, reference_coverage) %>%
+  distinct(sampling_set, vfold_set, hits, reference_coverage, Assembly) %>%
   # left_join(conoServerDB,by = "hits") %>%
   mutate(summarise = "< 80 % alignment") %>%
   mutate(summarise = ifelse(reference_coverage >= 0.8, ">= 80% alignment", summarise)) %>%
   mutate(summarise = ifelse(reference_coverage >= 0.9, ">= 90% alignment", summarise)) %>%
   mutate(summarise = ifelse(reference_coverage >= 0.95, ">= 95% alignment", summarise)) %>%
   mutate(summarise = ifelse(reference_coverage == 1, "100% alignment", summarise)) %>%
-  dplyr::count(sampling_set, vfold_set, summarise)
+  dplyr::count(sampling_set, vfold_set, Assembly, summarise)
 
 
 n_pallet <- length(unique(DataViz$summarise))
@@ -200,7 +247,7 @@ p2 <- DataViz %>%
   scale_color_manual("",values = scale_col ) +
   scale_fill_manual("",values = scale_fill)
   
-p2
+p2 + facet_grid(~ Assembly)
 
 # ggsave(p2,
 #     filename = 'Subsampling_boxplot.png', 
@@ -212,9 +259,10 @@ p2
 # 
 conoServerDB %>%
   dplyr::count(genesuperfamily)
+
 transratedf %>% 
   # filter(sampling_set == 1) %>%
-  distinct(sampling_set, vfold_set, hits, reference_coverage) %>%
+  # distinct(sampling_set, vfold_set, hits, reference_coverage) %>%
   left_join(conoServerDB,by = "hits") %>%   drop_na() %>% 
   mutate(summarise = "< 80 % alignment") %>%
   mutate(summarise = ifelse(reference_coverage >= 0.8, ">= 80% alignment", summarise)) %>%
@@ -249,19 +297,19 @@ p1 <- metricsdf %>%
   dplyr::mutate(facet = dplyr::recode_factor(facet, !!!recode_to)) %>%
   drop_na() %>%
   ggplot(aes(y = y, x = as.factor(sampling_set))) +
-  facet_grid(facet ~., scales ="free", switch = "y") +
+  facet_grid(facet ~Assembly, scales ="free", switch = "y") +
   geom_jitter(position = position_jitter(0.1), shape = 1) +
   stat_summary(fun = "mean", geom = "line", aes(group = 1), color="blue") +
-  stat_summary(fun = "mean", geom = "point", aes(group = 1), color="blue") +
+  stat_summary(fun = "mean", geom = "point", aes(group = 1), color="blue") + # , color="blue"
   # stat_summary(fun.data=mean_sdl, geom="pointrange", color="red") +
-  labs(x = "Sample size (Proportion of the sample)", y = "", caption = "3_Subsampling.R") +
+  labs(x = "Sample size (Proportion of the sample)", y = "", caption = "Subsampling.R") +
   # ylim(0,NA) +
   my_custom_theme()
 
-# p1
+# p1 
 
 ggsave(p1, filename = 'Subsampling.png', 
-  path = outdir, width = 4, height = 6, dpi = 1000, device = png)
+  path = outdir, width = 6, height = 6, dpi = 1000, device = png)
 
 
 quit()
