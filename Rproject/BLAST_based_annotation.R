@@ -9,18 +9,46 @@
 # Load necessary packages
 library(dplyr)
 library(tidyr)
-
+library(tidyverse)
 
 rm(list = ls())
 
 if(!is.null(dev.list())) dev.off()
 
+options(stringsAsFactors = FALSE, readr.show_col_types = FALSE)
+
 dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/1_assembly/blast_outputs/"
 
-str(file_list <- list.files(path = dir, pattern = "1.blast", recursive = T, full.names = TRUE))
+str(file_list_1 <- list.files(path = dir, pattern = "1.blast", recursive = T, full.names = TRUE))
 
+str(file_list_2 <- list.files(path = dir, pattern = "2.blast", recursive = T, full.names = TRUE))
+
+file_list <- file_list_1
+
+file_list <- file_list[!grepl("MERGEPIPE|PLASS", file_list)] # Huge sizes because many contigs asmb
+
+nlines <- function(f) {
+  cat("\nReading\n")
+  cat(basename(f))
+  cat("\n")
+  
+  cat("\nContaining hits:\n")
+  system(paste0("wc -l ", f, "| awk '{print $1}'"))
+  cat("\n")
+}
+
+# lapply(file_list, nlines)
 
 blast_annotation <- function(f) {
+  
+  cat("\nReading\n")
+  cat(f)
+  cat("\n")
+  
+  cat("\nContaining hits:\n")
+  system(paste0("wc -l ", f, "| awk '{print $1}'"))
+  cat("\n")
+  
   
   read_outfmt6 <- function(f) {
     
@@ -67,6 +95,11 @@ blast_annotation <- function(f) {
     dplyr::rename("subject_length" = "slen")
   
   
+  blast <- blast %>%
+    filter(length >= 0.5 * query_length | length >= 0.5 * subject_length) %>%
+    filter(pident >= 80)
+  
+  
   # Function to calculate overlap ratio between two alignments on reference or query
   overlap_ratio <- function(start1, end1, start2, end2) {
     if(any(is.na(c(start1, end1, start2, end2)))) return(NA)
@@ -75,14 +108,10 @@ blast_annotation <- function(f) {
     return(overlap / shortest)
   }
   
-  
-  blast_filtered <- blast %>%
-    filter(length >= 0.5 * query_length | length >= 0.5 * subject_length) %>%
-    filter(pident >= 80)
-  
-  contig_hits <- blast %>%
-    group_by(qseqid) %>%
-    summarise(n_hits = n(), subjects = list(unique(sseqid)))
+
+  # contig_hits <- blast %>%
+  #   group_by(qseqid) %>%
+  #   summarise(n_hits = n(), subjects = list(unique(sseqid)))
   
   # For each subject, get contigs
   subject_contigs <- blast %>%
@@ -93,11 +122,16 @@ blast_annotation <- function(f) {
   
   # Helper function for assignment
   assign_preliminary_category <- function(qseqid) {
-    hits <- blast %>% filter(qseqid == !!qseqid)
+    
+    hits <- blast %>% filter(qseqid == !!qseqid) # !! changes TRUE to FALSE, 
+    
     n_hits <- nrow(hits)
+    
     unique_subj <- length(unique(hits$sseqid))
+    
     # For each subject in hits, count number of contigs hitting it
     subj_contigs <- subject_contigs %>% filter(sseqid %in% hits$sseqid)
+    
     n_contigs_per_subj <- subj_contigs$n_contigs
     
     if (n_hits == 0) {
@@ -241,9 +275,23 @@ blast_annotation <- function(f) {
   
 }
 
+# blast_annotation(file_list_1[1])
+# blast_annotation(file_list_2[1])
 
-blast_annotation(file_list[1])
+blast_annotation(file_list[6])
 
-annotation_df <- lapply(file_list[1:2], blast_annotation)
+annotation_df <- lapply(file_list, blast_annotation)
 
 annotation_df <- do.call(rbind,annotation_df)
+
+annotation_df <- annotation_df %>%
+  as_tibble() %>%
+  mutate(vfold_set = sapply(strsplit(file_name, "_"), `[`, 1)) %>%
+  mutate(Assembler = sapply(strsplit(file_name, "_"), `[`, 5))
+
+
+annotation_df %>%
+  group_by(Assembler) %>%
+  mutate(frac = n/sum(n)) %>%
+  ggplot(aes(x = frac, y = Assembler, fill = prelim_cat)) +
+  geom_col()
