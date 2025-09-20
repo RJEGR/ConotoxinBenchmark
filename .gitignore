@@ -9,3 +9,5 @@ INPUTS/
 0_simulated_data_dir/
 INPUTS/
 1_assembly/transrate_contigs_dir/
+1_assembly/FASTA_DIR
+1_assembly/blast_outputs
