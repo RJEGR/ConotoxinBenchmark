@@ -35,39 +35,23 @@ seqkit stat *fastq.gz
 # SRR7008752_2.fastq.gz  FASTQ   DNA   1,859,050  185,905,000      100      100      100
 ```
 
-### Processing
-
-Samples save at:
-
-/LUSTRE/bioinformatica_data/ecologia_molecular/Francesco/Cancer
-
-Los datos obtenidos mediante fastq-dump, incluía en SRAToolkit; se encuentra en la trayectoria: /LUSTRE/bioinformatica_data/ecologia_molecular/SRAdata
-
-Se descargo (Silvia) unicamente los datos del proyecto: 
-
-- PRJNA450372 (590 librerias con prefijo SRR700*, corresponde a las bibliotecas control)
-- pero hace falta descargar las bibliotecas del proyecto de cancer (PRJNA625321), prefilo SRR115.
+### 4) Running slurm
 
 ```bash
-# PRJNA450372, Single Cell RNA sequencing of Adult Human Breast Epithelial Cells
-esearch -db sra -query "PRJNA625321" |  efetch -format docsum | xtract -pattern Runs -ACC @acc  -element "&ACC" > SraAccList.txt
+#!/bin/bash
+#SBATCH --job-name=fasterq-dump
+#SBATCH -N 1
+#SBATCH --mem=50GB
+#SBATCH --ntasks-per-node=20
+#SBATCH --mail-type=BEGIN,END
+#SBATCH --mail-user=rgomez@uabc.edu.mx
 
-# 
+EXPORT=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/Software/sratoolkit.3.1.1-ubuntu64/bin
+export PATH=$PATH:$EXPORT
 
-./fastq-dump -n 1 -P 1 --split-files SraAccList.txt --gzip --skip-technical --outdir .
+THREADS=$SLURM_NPROCS
 
+for i in $(cat Sra.list); do fasterq-dump --split-files $i --skip-technical -p -e $THREADS;done
 
-# Test
-head -n1 SraAccList.txt | xargs -n 1 -P 1 ./fastq-dump --split-files --gzip --skip-technical --outdir .
-
-# Then
-# for i in $(cat *txt); do echo $i; done
-
-for i in $(cat *txt); do echo $i | xargs -n 1 -P 1 ./fastq-dump --split-files --gzip --skip-technical --outdir .; done
-
-# track the download:
-ls -lth
-
-# (optional)
-seqkit stat *fastq.gz
+exit
 ```
