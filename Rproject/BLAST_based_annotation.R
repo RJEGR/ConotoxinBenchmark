@@ -6,6 +6,8 @@
 
 # scp -r rgomez@omica.cicese.mx:/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/1_assembly_dir/Folds_200x_dir/FASTA_DIR/transrate_contigs_dir/blast_outputs .
 
+
+
 # 1. merge to best reciprocal, 
 # 2. run blast annotation
 
