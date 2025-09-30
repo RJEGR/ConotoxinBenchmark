@@ -102,6 +102,23 @@ run_longer_transrate() {
 
             mv "$contig_file" "$dst"
         done
+    
+    echo "Copying blast outputs for further inspection"
+
+    mkdir transrate_contigs_dir/blast_outputs
+
+    find "transrate_tmp_dir/$TRANSRATE_DIR" -name "*[0-9].blast"| while read -r blast_file; do
+
+            dst="transrate_contigs_dir/blast_outputs/${blast_file#transrate_tmp_dir}"
+            
+            echo $dst
+            
+            mkdir -p "$(dirname "$dst")"
+            
+            echo "Moving $blast_file to $dst"
+
+            mv "$blast_file" "$dst"
+        done
 
 }
 
@@ -127,16 +144,6 @@ run_reference_transrate() {
 
         
     echo "Processing FASTA : $QUERY"
-
-        # Substring to extract the sf prefix
-
-        # FAMILYPREFIX=$(echo $asm | awk -F'/' '{for(i=1;i<=NF;i++) if($i ~ /_QUERY/) print $i}')
-
-
-        #echo ${FAMILYPREFIX%_QUERY}
-
-        #ref=$TARGET/${FAMILYPREFIX%_QUERY}.fasta
-        
         
     TRANSRATE_DIR=${QUERY%.*}_dir
 
