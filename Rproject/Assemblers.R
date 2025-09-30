@@ -169,7 +169,7 @@ f <- list.files(path = outdir, pattern = "curated_nuc_conoServerDB.rds", full.na
 
 conoServerDB <- read_rds(f) %>% dplyr::rename("hits" = "entry_id")
 
-dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/1_assembly/transrate_contigs_dir/"
+dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/1_assembly/transrate_contigs_reference_dir/"
 
 str(file_list <- list.files(path = dir, pattern = "contigs.csv", recursive = T, full.names = TRUE))
 
@@ -317,6 +317,32 @@ summarise_df <- transratedf %>%
   mutate(summarise = ifelse(reference_coverage == 1, "100% alignment", summarise)) %>%
   group_by(summarise, Assembler, vfold_set) 
 
+## TRansrate (if read-based metrics are found)
+
+names(transratedf) %in% c("in_bridges", "p_good", "")
+
+# The contig will represent a single transcript, s(Cseg). This score mea- sures the probability that the coverage depth of the transcript is univariate, i.e., that it represents an assembly of a single tran- script and not a hybrid/chimeric assembly of multiple tran- scripts expressed at different expression levels. Here, the per- nucleotide coverage depth of the contig must be best modeled by a single Dirichlet distribution (described below). If the contig is better modeled by the product of two or more Dirichlet distri- butions, then this indicates that two or more contigs with differ- ent transcript abundances have been erroneously assembled together.
+
+#  Similarly, transcripts with low s(Cseg) scores are likely to represent chimeric transcripts. Here, al- though the transcript itself may be incorrectly assembled, the com- ponent segments of the transcript may themselves be correctly assembled and of utility if separated. To help users identify and diagnose likely assembly errors affecting low scoring contigs, TransRate provides each of the separate contig scores (in addition to the overall contig score). This
+
+transratedf %>% 
+  filter(!is.na(hits)) %>%
+  # filter(reference_coverage < 0.5) %>%
+  # ggplot(aes(in_bridges)) + geom_histogram()
+  # ggplot(aes(p_good, score, alpha = reference_coverage)) + geom_point()
+  ggplot(aes(p_not_segmented, tpm)) + geom_point()
+
+# Correlate 
+transratedf %>% 
+  filter(!is.na(hits)) %>% 
+  select_if(is.double) %>%
+  mutate_all(~replace(., is.na(.), 0)) %>%
+  cor(method = "spearman") -> M
+
+
+testRes <- corrplot::cor.mtest(M, conf.level = 0.95)
+# 
+corrplot::corrplot(M, p.mat = testRes$p ,method = "color", type="upper", order = "hclust", insig = "label_sig")
 
 
 quit()
