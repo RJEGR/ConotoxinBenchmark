@@ -10,13 +10,13 @@ while getopts "s:o:p:h" opt; do
     case $opt in
         s) MANIFEST_FILE="$OPTARG";;
         o) OUTPUT_DIR="$OPTARG";;
-        p) PROPORTION="$OPTARG";;
+        #p) PROPORTION="$OPTARG";;
         h)
             echo "Usage: $(basename $0) -s <Manifest> [-o <OutputDir>]"
             echo
             echo "Arguments:"
             echo "  -s <Manifest>: A text file containing sample information. Option -s all, allow to run assembly batches for all manifests matching the pattern *.txt."
-            echo "  -o <OutputDir>: Directory to save all outputs. If not provided, a default folder will be created using md5sum hash, including {Manifest} prefix and proportion value."
+            #echo "  -o <OutputDir>: Directory to save all outputs. If not provided, a default folder will be created using md5sum hash, including {Manifest} prefix and proportion value."
             echo "  -p <Proportion>: Proportion value."
             echo
             echo "Description:"
