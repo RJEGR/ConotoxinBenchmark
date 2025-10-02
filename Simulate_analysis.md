@@ -53,3 +53,101 @@ Additonal output generated from the step 3 are &&&. Use Effort.R example script 
 ```bash
 kmer_analysis.sh
 ```
+
+### Step 5
+Conotoxin classification
+Select baseline dataset
+Evals ConoSorter, blast, hhm, hhsuite,
+
+### Step 6
+Using real-data 
+Downloading step
+Assembly (spades, trinity, plass)
+Evals metrics (busco, Nx)
+Annotate
+
+
+```bash
+
+find . -name "*_1.fastq" | while read -r fastq_file; do
+
+output_bs=$(basename "$fastq_file" _1.fastq)
+
+relative_path="$PWD/${fasta_file##*/}" # Extract the filename from the path
+absolute_path="$(cd "$(dirname "$relative_path")" && pwd)/$(basename "$relative_path")"
+
+echo "Absolute path: $absolute_path"
+
+forward_file=$absolute_path/${output_bs}_1.fastq
+reverse_file=$absolute_path/${output_bs}_2.fastq
+
+echo "Running artificial step for $forward_file and $reverse_file."
+
+echo -e "$output_bs\t$forward_file\t$reverse_file\t$reference_file" >> "${output_bs}_samples.txt"
+
+done
+
+
+sample_count=$(find . -maxdepth 1 -name "*_samples.txt" | wc -l)
+
+if [ "$sample_count" -gt 5 ]; then
+     find . -maxdepth 1 -name "*_samples.txt" > batches.log
+     split -l 5 batches.log batch_
+
+     for batch in batch_*; do
+          subfolder="${batch}_dir"
+          mkdir -p "$subfolder"
+          while read -r sample_file; do
+               cp -r Assemblers.sh ./run_assemblers_dir run.suitable.config "$sample_file" "$subfolder/"
+          done < "$batch"
+     done
+
+     rm batches.log batch_*
+fi
+
+```
+
+line_count=$(find . -maxdepth 1 -name "*_samples.txt" | wc -l)
+
+if [ "$line_count" -gt 5 ]; then
+     find . -maxdepth 1 -name "*_samples.txt" | split -l 5 - batch_
+
+     for batch in batch_*; do
+          subfolder="${batch%.*}_dir"
+          mkdir -p "$subfolder"
+          while read -r line; do
+               echo "$line" > "$subfolder/$(echo "$line" | cut -f1).txt"
+          done < "$batch"
+     done
+fi
+
+```
+
+```bash
+
+run_assembler_batches() {
+     local txt_count
+
+     txt_count=$(find . -maxdepth 1 -name "*_samples.txt" | wc -l)
+     
+     if [ "$txt_count" -le 5 ]; then
+          
+          echo "sbatch ./Assemblers.sh -s all -c run.suitable.config"
+     
+     else
+          # Split txt files into batches of 5 and run Assemblers.sh for each batch
+          find . -maxdepth 1 -name "*_samples.txt" | split -l 5 - batch_
+          
+          for batch in batch_*; do
+               files=$(cat "$batch" | tr '\n' ',' | sed 's/,$//')
+
+               echo "sbatch ./Assemblers.sh -s "$files" -c run.suitable.config"
+          done
+
+          rm batch_*
+     fi
+}
+
+run_assembly_batches.sh
+
+```
