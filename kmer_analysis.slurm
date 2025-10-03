@@ -23,4 +23,10 @@ for k in 19 21 25 33 38 44 49 55 60 73; do
     ./kmer.sh -s all -k $k
 done
 
+# small k-mers
+for k in 19,25,33; do
+    echo "Processing k: $k ======================"
+    #./kmer.sh -s all -k $k
+done
+
 exit
