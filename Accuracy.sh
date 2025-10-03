@@ -275,23 +275,3 @@ fi
 rm -rf transrate_tmp_dir
 
 exit
-
-#!/bin/bash
-#SBATCH --job-name=transrate_coverage
-#SBATCH -N 1
-#SBATCH --mem=100GB
-#SBATCH --ntasks-per-node=24
-#SBATCH -t 6-00:00:00
-#SBATCH -o out.%J
-#SBATCH -e err.%J
-
-for i in $(ls *fa); do
-    echo "Processing manifest: $i"
-    manifest=${i%_*}.txt
-
-    call="./Accuracy.sh -s $manifest -d $i -m reference"
-    echo $call
-    eval $call
-done
-
-exit
