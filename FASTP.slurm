@@ -29,6 +29,7 @@ right_file=${infile}_2.fastq
 # Consider to
 # --disable_length_filtering: length filtering is enabled by default. If this option is specified, length filtering is disabled
 # --length_required: reads shorter than length_required will be discarded, default is 15. (int [=15])
+#     --dedup --dup_calc_accuracy 3 \
 
 if [ ! -f "CHKPNT_DIR/${bs}_fastp.chkpt" ]; then
 
@@ -39,7 +40,8 @@ if [ ! -f "CHKPNT_DIR/${bs}_fastp.chkpt" ]; then
     --json MULTIQC_VIZ_DIR/${bs}_fastp.json \
     --html MULTIQC_VIZ_DIR/${bs}_fastp.html \
     -i $left_file -I $right_file \
-    -o FASTP_OUT_DIR/${bs}_R1.fq.gz  -O FASTP_OUT_DIR/${bs}_R2.fq.gz"
+    -o FASTP_OUT_DIR/${bs}_1.fastq  -O FASTP_OUT_DIR/${bs}_2.fastq \
+    --merge --merged_out FASTP_OUT_DIR/${bs}_dedup_merged.fq.gz"
 
     echo "Running fastp in '${bs}' sample."
 
@@ -47,30 +49,15 @@ if [ ! -f "CHKPNT_DIR/${bs}_fastp.chkpt" ]; then
 
     eval $call
 
-    # Merge and dedup
-    call="fastp --thread $NPROCS \
-    --disable_length_filtering \
-    --dont_eval_duplication \
-    --json MULTIQC_VIZ_DIR/${bs}_fastp.json.tmp.merged \
-    --html MULTIQC_VIZ_DIR/${bs}_fastp.html.tmp.merged \
-    -i FASTP_OUT_DIR/${bs}_R1.fq.gz -I FASTP_OUT_DIR/${bs}_R2.fq.gz \
-    --dedup --dup_calc_accuracy 3 \
-    --merge --merged_out FASTP_OUT_DIR/${bs}_dedup_merged.fq.gz"
-
-    echo "Merging and dedup fastp in '${bs}' sample."
-
-    eval $call
-
-    rm -f MULTIQC_VIZ_DIR/${bs}_fastp.*.tmp.merged
-
-
     unlink $left_file
+
     unlink $right_file
 
     touch  CHKPNT_DIR/${bs}_fastp.chkpt
 
 else
     echo "'CHKPNT_DIR/${bs}_fastp.chkpt' already exists."
+    
     echo "Continue with next sample."
 fi
 
