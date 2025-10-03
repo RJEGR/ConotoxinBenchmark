@@ -29,6 +29,7 @@ con <- gzcon(url(url, "rb"))
 
 file_out <- gsub(".xml.gz",".rds", basename(url))
 
+
 dedup_DNAStringSet <- function(dnaset) {
   
   require(Biostrings)
@@ -39,6 +40,7 @@ dedup_DNAStringSet <- function(dnaset) {
   names(unique_seqs) <- sapply(split_names, paste, collapse="|")
   unique_seqs
 }
+
 extract_entry_info <- function(entry_node) {
   
   
@@ -281,10 +283,12 @@ nrow(Nodedf %>% distinct(sequence))
 # Write FASTA from data ----
 
 fasta_file <- file.path(outdir, paste0("conoServerDB", ".fasta"))
+dedup_DNAStringSet
 
 Nodedf %>%
   pull(sequence, name = entry_id) %>%
   Biostrings::DNAStringSet() %>%
+  dedup_DNAStringSet() %>%
   # dedup_DNAStringSet()
   Biostrings::writeXStringSet(fasta_file)
 
