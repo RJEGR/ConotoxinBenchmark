@@ -1,13 +1,5 @@
 #!/bin/bash
 
-#!/bin/bash
-
-# Read a manifest file (manifest.txt file containing four coulumns of sample information in the order: factor, forward, reverse, and reference)
-# For every line in manifest, concatenate the forward and reverse reads, subsample them with seqkit-tool, and perform Trinity (or other) assembly.
-# The assembly fasta is used to calculate the accuracy of the assembly using transrate too 
-
-# Import seqkit to the environment
-
 while getopts "s:o:k:h" opt; do
     case $opt in
         s) MANIFEST_FILE="$OPTARG";;
