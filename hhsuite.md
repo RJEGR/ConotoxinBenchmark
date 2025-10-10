@@ -7,7 +7,7 @@ export PATH="$(pwd)/bin:$(pwd)/scripts:$PATH"
 ```
 
 Tools
-```bash
+```bashDocumentos_recabado_para_el_sindicato
 EXPORT=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/Software/hhsuite-3.3.0
 export PATH=$PATH:$EXPORT
 
