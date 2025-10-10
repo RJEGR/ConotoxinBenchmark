@@ -1,4 +1,3 @@
-
 #!/bin/bash
 #SBATCH --job-name=transrate_coverage
 #SBATCH -N 1
@@ -20,7 +19,7 @@ for i in $(ls *fa); do
 
     if [ ! -f chkp_dir/"$chkp_file" ]; then
 
-    call="./Accuracy.sh -s $manifest -d $i -m reference"
+    call="./Accuracy.sh -s $manifest -d $i -m both"
     
     echo $call
     
