@@ -283,15 +283,75 @@ nrow(Nodedf %>% distinct(sequence))
 # Write FASTA from data ----
 
 fasta_file <- file.path(outdir, paste0("conoServerDB", ".fasta"))
-dedup_DNAStringSet
 
 Nodedf %>%
   pull(sequence, name = entry_id) %>%
   Biostrings::DNAStringSet() %>%
   dedup_DNAStringSet() %>%
-  # dedup_DNAStringSet()
   Biostrings::writeXStringSet(fasta_file)
 
+# Split
+df <- Nodedf
+
+n_sequences <- 500
+
+n_chunks <- round(nrow(df)/n_sequences)
+
+# Step 3: Create a grouping factor
+# `seq_len(nrow(df))` generates a sequence of numbers from 1 to the number of rows.
+# `cut()` then divides this sequence into `n_chunks` equally-sized groups.
+group_factor <- cut(
+  seq_len(nrow(df)),
+  breaks = n_chunks,
+  labels = FALSE
+)
+
+# Step 4: Split the data frame into a list of data frames
+list_of_dfs <- split(df, group_factor)
+
+# View the result
+# The output is a list, where each element is a data frame.
+print(list_of_dfs)
+
+# You can access individual data frames from the list.
+# For example, to see the first chunk:
+print(list_of_dfs[[1]])
+
+split_chunks <- function(df, fasta_file) {
+  
+  # fasta_name <- paste0("conoServerDB", "_chunk_", n_chunk,".fasta")
+  
+  # fasta_file <- file.path(outdir, fasta_name)
+  
+  cat(fasta_file,"\n")
+  
+  dedup_StringSet <- function(seqset) {
+    
+    require(Biostrings)
+    
+    seq_chars <- as.character(seqset)
+    split_names <- split(names(seqset), seq_chars)
+    unique_seqs <- Biostrings::AAStringSet(names(split_names))
+    names(unique_seqs) <- sapply(split_names, paste, collapse="|")
+    unique_seqs
+  }
+  
+  df %>%
+    pull(proteinsequence, name = entry_id) %>%
+    Biostrings::AAStringSet() %>%
+    dedup_StringSet() %>%
+    Biostrings::writeXStringSet(fasta_file)
+}
+
+# 3. Use lapply to iterate through the list and save each data frame as a CSV
+lapply(
+  names(list_of_dfs),
+  function(chunk) {
+    fasta_name <- paste0("conoServerDB", "_chunk_", chunk,".fasta")
+    fasta_file <- file.path(outdir, fasta_name)
+    split_chunks(list_of_dfs[[chunk]], fasta_file)
+  }
+)
 # ===
 
 Nodedf %>% summarise(mean = mean(nchar(sequence)), sd = sd(nchar(sequence)))
