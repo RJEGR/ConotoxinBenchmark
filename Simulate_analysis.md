@@ -151,3 +151,19 @@ run_assembler_batches() {
 run_assembly_batches.sh
 
 ```
+
+
+Grep REGEX, for summarise transrate results
+
+
+```bash
+
+egrep "Results will be saved|p good contigs|reference coverage" out.21693
+n50
+n90
+n70
+n30
+n10
+p good contigs
+
+```
