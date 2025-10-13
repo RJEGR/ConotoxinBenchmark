@@ -266,7 +266,7 @@ nrow(data)
 # ex.
 # data %>% drop_na(proteinsequence) %>% filter(grepl("^ATG", sequence))
 
-
+# ‘POTENTIAL’, ‘HYPOTHETICAL’ or ‘SYNTHETIC’ 
 
 nrow(Nodedf <- data %>% filter(!grepl("Patent|patent", name)))
 
@@ -275,6 +275,7 @@ nrow(Nodedf <- Nodedf %>% drop_na(proteinsequence) %>% filter(grepl("^M", protei
 nrow(Nodedf <- Nodedf %>% filter(!grepl("N", sequence))) # omit ambigous sequences
 
 nrow(Nodedf <- Nodedf %>% filter(nchar(sequence) >= 100))
+
 
 # nrow(Nodedf <- Nodedf %>% filter(nchar(sequence) < 1000))
 
