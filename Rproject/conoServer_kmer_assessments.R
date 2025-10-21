@@ -105,7 +105,7 @@ kmer_assessment <- function(sequences, window_vec = 10) {
 
 
 # ==========
-# Evals (first) using subsampling, from 0.1 to 1, by = 0.1 ======
+# (omit) Evals (first) using subsampling, from 0.1 to 1, by = 0.1 ======
 # ===========
 
 library(rsample)
@@ -165,47 +165,48 @@ seq_results %>%
   # labs(x = "k-mer size", y = "", caption = "kmer.R (Assembly with spades)", tag = subti) +
   my_custom_theme(plot.tag = element_text(size = 7, hjust = 0))
 
-stratify <- function(data, k = 10, fractions = seq(0.1, 0.9, by = 0.1)) {
+# As above test, only represent a single-or-one sampling, lets resampling 12folds and redoing the test 
 
-  fractions <- seq(0.1, 0.9, by = 0.1)
+
+stratify_data <- function(s) {
   
-  # Function to create subsample at given fraction
-  subsample_at_fraction <- function(data, frac) {
+  stratify <- function(data, k = 10, fractions = seq(0.1, 0.9, by = 0.1)) {
     
-    cat("\n Proportion: ", frac, "\n")
+    # fractions <- seq(0.1, 0.9, by = 0.1)
     
-    initial_split(data, prop = frac) %>% analysis() %>% mutate(prop = frac) 
+    # Function to create subsample at given fraction
+    subsample_at_fraction <- function(data, frac) {
+      
+      cat("\n Proportion: ", frac, "\n")
+      
+      initial_split(data, prop = frac) %>% analysis() %>% mutate(prop = frac) 
+      
+    }
     
+    
+    # Generate list of subsamples
+    subsamples <- lapply(fractions, function(f) subsample_at_fraction(data, f))
+    
+    # Optional: name each subsample by fraction
+    names(subsamples) <- paste0("sample_", fractions)
+    
+    subsamples <- dplyr::bind_rows(subsamples)
+    
+    splitted_seqs <- split(strsplit(subsamples$sequence, ";") , subsamples$prop)
+    
+    splitted_seqs <- lapply(splitted_seqs, unlist)
+    
+    seq_results <- lapply(splitted_seqs, kmer_assessment, window_vec = k)
+    
+    # Combine results to a single data.frame if desired:
+    seq_results <- do.call(rbind, lapply(names(seq_results), function(nm) {
+      df <- seq_results[[nm]]
+      df$Prop <- nm
+      df
+    }))
+    
+    return(seq_results)
   }
-  
-  
-  # Generate list of subsamples
-  subsamples <- lapply(fractions, function(f) subsample_at_fraction(data, f))
-  
-  # Optional: name each subsample by fraction
-  names(subsamples) <- paste0("sample_", fractions)
-  
-  subsamples <- dplyr::bind_rows(subsamples)
-  
-  splitted_seqs <- split(strsplit(subsamples$sequence, ";") , subsamples$prop)
-  
-  splitted_seqs <- lapply(splitted_seqs, unlist)
-  
-  seq_results <- lapply(splitted_seqs, kmer_assessment, window_vec = k)
-  
-  # Combine results to a single data.frame if desired:
-  seq_results <- do.call(rbind, lapply(names(seq_results), function(nm) {
-    df <- seq_results[[nm]]
-    df$Prop <- nm
-    df
-  }))
-  
-  return(seq_results)
-}
-
-stratify(data)
-
-stratify_ <- function(s) {
   
   cat("\n Label ", labels(s)$id, "\n")
   
@@ -218,7 +219,7 @@ folds <- rsample::vfold_cv(data, v = 12) # strata = stratified_sampling
 
 # stratify_(folds$splits[[2]])
 
-seq_results <- dplyr::bind_rows(lapply(folds$splits, stratify_)) 
+seq_results <- dplyr::bind_rows(lapply(folds$splits, stratify_data)) 
 
 seq_results %>% dplyr::count(Prop)
 
@@ -259,7 +260,7 @@ splitted_seqs <- lapply(splitted_seqs, unlist)
 
 # kmer_assessment(splitted_seqs$`D superfamily`, window_vec = c(10, 12))
 
-results <- lapply(splitted_seqs, kmer_assessment, window_vec = 10)
+results <- lapply(splitted_seqs, kmer_assessment, window_vec = k)
 
 # Combine results to a single data.frame if desired:
 full_results <- do.call(rbind, lapply(names(results), function(nm) {
@@ -269,135 +270,72 @@ full_results <- do.call(rbind, lapply(names(results), function(nm) {
 }))
 
 head(full_results)
-
-
-kmer_merge <- function(sequences, window_vec) {
-  
-  # Extract k-mers from a sequence for given k
-  kwindows <- function(read, k) {
-    kmers <- c()
-    for (i in 1:(nchar(read) - k + 1)) {
-      kmers <- c(kmers, substr(read, i, i + k - 1))
-    }
-    return(kmers)
-  }
-  
-  # Count k-mers for a list of sequences
-  count_kmers <- function(seq_list, k) {
-    kmers <- lapply(seq_list, kwindows, k = k)
-    counts <- table(unlist(kmers))
-    return(counts)
-  }
-  
-  merged_matrices <- lapply(window_vec, function(win) {
-    # For each window length, count k-mers per sample group
-    count_list <- lapply(sequences, count_kmers, k = win)
-    
-    # Get all unique k-mers across all groups
-    all_kmers <- unique(unlist(lapply(count_list, names)))
-    
-    # Build count matrix by populating counts per group, missing are zero
-    mat <- sapply(count_list, function(cnts) {
-      vals <- cnts[all_kmers]
-      vals[is.na(vals)] <- 0
-      vals
-    })
-    
-    # Name rows and columns for clarity
-    rownames(mat) <- all_kmers
-    colnames(mat) <- names(sequences)
-    
-    return(mat)
-  })
-  
-  names(merged_matrices) <- paste0("k", window_vec)
-  
-  return(merged_matrices)
-}
-
-kmers_combined <- kmer_merge(splitted_seqs, window_vec = 10)
-
-m <- kmers_combined$k10
-
-PCA <- function(m) {
-
-  
-  PCA <- prcomp(m, center = F, scale. = T)
-  
-  PCAdf <- data.frame(PC1 = PCA$x[,1], PC2 = PCA$x[,2])
-  
-  percentVar <- round(100*PCA$sdev^2/sum(PCA$sdev^2),1)
-  
-  # percentVar <- round(PCA$sdev/sum(PCA$sdev)*100,1)
-  
-  PCAvar <- data.frame(
-    Eigenvalues = PCA$sdev,
-    percentVar = percentVar,
-    Varcum = cumsum(percentVar)
-    # Method = basename(f)
-  )
-  
-  return(list(PCAdf, PCAvar))
-}
-
-
-dist_mat <- dist(t(m))
-
-mds_res <- cmdscale(dist_mat, k = 2)
-
-
-PCAdf <- PCA(t(m))
-
-percentVar1 <- paste0(PCAdf[[2]]$percentVar[1], "% ,",PCAdf[[1]]$percentVar[1])
-percentVar1 <- paste0("PC1, VarExp: ", percentVar1, "%")
-
-
-percentVar2 <- paste0(PCAdf[[2]]$percentVar[2], "% ,",PCAdf[[1]]$percentVar[2])
-percentVar2 <- paste0("PC2, VarExp: ", percentVar2, "%")
-
-
-PCAdf <- PCAdf[[1]]
-
-
-PCAdf %>%
-  mutate(genesuperfamily = rownames(.)) %>% 
-  # left_join(Manifest, by = "LIBRARY_ID") %>%
-  ggplot(., aes(PC1, PC2)) +
-  theme_bw(base_size = 14, base_family = "GillSans") +
-  xlab(percentVar1) + ylab(percentVar2) +
-  geom_abline(slope = 0, intercept = 0, linetype="dashed", alpha=0.5) +
-  geom_vline(xintercept = 0, linetype="dashed", alpha=0.5) +
-  # ggrepel::geom_text_repel( family = "GillSans", mapping = aes(label = HPF), size = 3.5, color = "black") +
-  # geom_text( family = "GillSans", mapping = aes(label = LIBRARY_ID), size = 3.5, color = "black") +
-  theme( legend.position = 'top',
-    legend.key.width = unit(0.2, "mm"),
-    legend.key.height = unit(0.2, "mm")) -> p
-
-p + geom_point() + 
-  ggrepel::geom_text_repel(aes(label = genesuperfamily), max.overlaps = 100) +
-  my_custom_theme()
-
 
 
 
 # -=======
 # Evals according to the screening of kmers =====
 # =========
+kmer_assessment_vfolds <- function(s, window_vec) {
+  
+  cat("\n Label ", labels(s)$id, "\n")
+  
+  data <- analysis(s) 
+  
+  splitted_seqs <- split(strsplit(data$sequence, ";") , data$genesuperfamily)
+  
+  splitted_seqs <- lapply(splitted_seqs, unlist)
+  
+  
+  results <- lapply(splitted_seqs, kmer_assessment, window_vec = window_vec)
+  
+  full_results <- do.call(rbind, lapply(names(results), function(nm) {
+    df <- results[[nm]]
+    df$genesuperfamily <- nm
+    df
+  }))
+  
+  full_results <- full_results %>% mutate(strata = labels(s)$id)
+  
+  return(full_results)
+}
+
+# folds <- rsample::vfold_cv(data, v = 12) # strata = stratified_sampling
+
+# seq_results <- dplyr::bind_rows(lapply(folds$splits, stratify_data)) 
+
+
 window_vec <- c(k, 19, 21, 25, 33, 49, 55, 73)
 
-kmer_assessment(seqs[1:3], window_vec)
+kmer_assessment_vfolds(folds$splits[[1]], window_vec)
 
 # kmer_assessment must accept a sequence set + window_vec
-results <- lapply(splitted_seqs, kmer_assessment, window_vec = window_vec)
+results <- lapply(folds$splits, kmer_assessment_vfolds, window_vec = window_vec)
+
+results <- lapply(folds$splits, kmer_assessment, window_vec = window_vec)
+
 
 # Combine results to a single data.frame if desired:
-full_results <- do.call(rbind, lapply(names(results), function(nm) {
-  df <- results[[nm]]
-  df$genesuperfamily <- nm
-  df
-}))
 
-head(full_results)
+head(results <- dplyr::bind_rows(results))
+
+results %>% count(strata)
+
+
+results %>%
+  as_tibble() %>%
+  arrange(desc(n_seqs)) %>% mutate(genesuperfamily = factor(genesuperfamily, levels = unique(genesuperfamily))) %>%
+  ggplot(aes(y = genesuperfamily, x = kmer_entropy)) +
+  # facet_wrap(~ genesuperfamily) +
+  geom_jitter(position = position_jitter(0.1), shape = 1) +
+  # stat_summary(fun = "mean", geom = "line", aes(group = 1), color="blue") +
+  # stat_summary(fun = "mean", geom = "point", aes(group = 1), color="blue") + # , color="blue"
+  stat_summary(fun.data=mean_sdl, geom="pointrange", color="blue") +
+  # labs(x = "k-mer size", y = "", caption = "kmer.R (Assembly with spades)", tag = subti) +
+  my_custom_theme(plot.tag = element_text(size = 7, hjust = 0))
+
+
+
 
 # Normalize by the Global 
 # kmer_entropy / log(kmer_richness)
@@ -421,13 +359,6 @@ full_results$evenness2 <- full_results$kmer_entropy / div_vals
 # High Entropy: Many different k-mers occur with similar frequency, indicating high genetic/sequence diversity and lower predictability.
 
 
-full_results %>% 
-  as_tibble() %>%
-  arrange(desc(n_seqs)) %>% mutate(genesuperfamily = factor(genesuperfamily, levels = unique(genesuperfamily))) %>%
-  ggplot(aes(y = genesuperfamily, x = as.factor(window), fill = evenness2)) +
-  geom_tile() +
-  my_custom_theme(plot.tag = element_text(size = 7, hjust = 0))
-
 
 full_results %>% 
   as_tibble() %>%
@@ -437,7 +368,7 @@ full_results %>%
   as_tibble() %>%
   # filter(window == 10) %>%
   arrange(desc(n_seqs)) %>% mutate(genesuperfamily = factor(genesuperfamily, levels = unique(genesuperfamily))) %>%
-  ggplot(aes(y = genesuperfamily, x = evenness2, alpha = kmer_entropy)) +
+  ggplot(aes(y = genesuperfamily, x = evenness, alpha = kmer_entropy)) +
   geom_col() +
   facet_grid(~ window) + labs(x = "Evenness (kmer_entropy / log(kmer_richness)") +
   my_custom_theme(plot.tag = element_text(size = 7, hjust = 0))
@@ -446,10 +377,10 @@ full_results %>%
 full_results %>%
   as_tibble() %>%
   arrange(desc(n_seqs)) %>% mutate(genesuperfamily = factor(genesuperfamily, levels = unique(genesuperfamily))) %>%
-  ggplot(aes(y = genesuperfamily, x = kmer_entropy)) +
+  ggplot(aes(y = kmer_entropy, x = as.factor(window))) +
   # facet_wrap(~ genesuperfamily) +
   geom_jitter(position = position_jitter(0.1), shape = 1) +
-  # stat_summary(fun = "mean", geom = "line", aes(group = 1), color="blue") +
+  stat_summary(fun = "mean", geom = "line", aes(group = 1), color="blue") +
   # stat_summary(fun = "mean", geom = "point", aes(group = 1), color="blue") + # , color="blue"
   stat_summary(fun.data=mean_sdl, geom="pointrange", color="blue") +
   # labs(x = "k-mer size", y = "", caption = "kmer.R (Assembly with spades)", tag = subti) +
