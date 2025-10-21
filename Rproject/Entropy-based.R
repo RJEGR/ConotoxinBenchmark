@@ -128,3 +128,107 @@ dna_seq2 <- "AAAAAAAAAA" # High information content (highly conserved), but Null
 calculate_entropy(dna_seq2)
 calculate_information_content(dna_seq2)
 calculate_custom_complexity(dna_seq2)
+
+# Perplexity
+# Perplexity is defined as the exponentiation of the cross-entropy loss, which is equivalent to 1 over the probability given to the correct nucleotide
+
+# Our probability in DNA is 1/4 (0.25) per nucleotide
+
+# Example: A vector of 12-mers (strings of length 12 over A,C,G,T)
+kmers <- c("ACTGACTGACTA", "ACTAACTTACTA", "ACTGACTAACTA", "ACTGACTGACTG")
+
+# Alphabet order: A, C, G, T
+alphabet <- c("A", "C", "G", "T")
+
+k <- 12
+
+# Initialize matrix to hold probabilities: rows=positions, cols=nucleotides
+pspm <- matrix(0, nrow = k, ncol = 4, dimnames = list(NULL, alphabet))
+
+# Count nucleotides at each position
+for (pos in 1:k) {
+  nt_counts <- table(factor(substr(kmers, pos, pos), levels = alphabet))
+  pspm[pos, ] <- nt_counts / sum(nt_counts)
+}
+
+print(pspm)
+
+
+# Example usage:
+# true_probs and predicted_probs must be numeric vectors of same length and sum to 1
+true_probs <- c(0.2, 0.3, 0.5)
+predicted_probs <- c(0.1, 0.4, 0.5)
+
+perplexity_value <- calculate_perplexity(true_probs, predicted_probs)
+print(perplexity_value)
+
+
+# s: character vector representing the observed k-mer sequence, e.g. c("A", "C", "T", "G", ...)
+# pspm: matrix (k x 4) with predicted probabilities for A,C,G,T at each position
+# Columns of pspm in order: A, C, G, T
+
+
+
+calculate_perplexity <- function(s) {
+  # s: character vector of observed nucleotides in the k-mer (length k)
+  # pspm: matrix k x 4, columns: A, C, G, T with predicted probabilities at each position
+  
+  s <- strsplit(s, "")[[1]]
+  
+  alphabet <- c("A", "C", "G", "T") # unique(s)
+  
+  # Initialize matrix to hold probabilities: rows=positions, cols=nucleotides
+  pspm <- matrix(0, nrow = k, ncol = 4, dimnames = list(NULL, alphabet))
+  
+  # Count nucleotides at each position
+  for (pos in 1:k) {
+    nt_counts <- table(factor(substr(kmers, pos, pos), levels = alphabet))
+    pspm[pos, ] <- nt_counts / sum(nt_counts)
+  }
+  
+  print(pspm)
+  
+  nuc_to_col <- c(A=1, C=2, G=3, T=4)
+  
+  k <- length(s)
+  
+  # Construct true_probs vector from observed sequence as one-hot encoding
+  true_probs <- numeric(k * 4)   # flattened vector for all positions and nucleotides
+  predicted_probs <- numeric(k * 4)
+  
+  for (i in seq_len(k)) {
+    for (nt in names(nuc_to_col)) {
+      idx <- (i - 1) * 4 + nuc_to_col[nt]  # position in flattened vector
+      
+      # True probability: 1 if nt matches s[i], else 0
+      true_probs[idx] <- ifelse(nt == s[i], 1, 0)
+      
+      # Predicted probability from PSPM
+      predicted_probs[idx] <- pspm[i, nuc_to_col[nt]]
+    }
+  }
+  
+  # Add epsilon to avoid log(0)
+  epsilon <- .Machine$double.eps
+  cross_entropy <- -sum(true_probs * log(predicted_probs + epsilon))
+  perplexity <- exp(cross_entropy / k)  # normalize by sequence length
+  
+  return(perplexity)
+}
+
+# Example:
+
+sequences_list <- lapply(splitted_seqs[10:12], kwindows, k = 20)
+
+
+# Uniform PSPM example
+pspm_uniform <- matrix(0.25, nrow = 12, ncol = 4, dimnames = list(NULL, c("A","C","G","T")))
+
+perplexities <- lapply(sequences_list, calculate_perplexity, pspm = pspm_uniform)
+
+# Optionally convert the list to numeric vector
+perplexities_vec <- unlist(perplexities)
+
+# View the perplexities per sequence
+print(perplexities_vec)
+
