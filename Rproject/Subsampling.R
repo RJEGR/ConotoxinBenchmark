@@ -211,6 +211,8 @@ metricsdf <- transratedf %>%
     Fscore = 2 * (TP) / (2 * (TP) + FP + FN), 
   ) 
 
+metricsdf %>%
+  write_tsv(file.path(outdir, "Sumbsampling_accuracy.tsv"))
 
 # (Quantitative): Proxy 1
 
