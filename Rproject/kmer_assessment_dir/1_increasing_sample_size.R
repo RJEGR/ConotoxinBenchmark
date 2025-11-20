@@ -166,7 +166,6 @@ folds <- rsample::vfold_cv(data, v = 12) # strata = stratified_sampling
 
 seq_results <- dplyr::bind_rows(lapply(folds$splits, stratify_data)) 
 
-
 seq_results %>% dplyr::count(Prop, window)
 
 window_vec = c(k, 19, 21, 25, 33, 49, 55, 73)
@@ -181,6 +180,8 @@ seq_results <- data %>%
 
 seq_results %>%
   write_tsv(file.path(outdir, "1_entropy_sample_size.tsv"))
+
+seq_results <- read_tsv(file.path(outdir, "1_entropy_sample_size.tsv"))
 
 discrete_scale <- seq_results %>% distinct(window) %>% pull()
 
@@ -207,12 +208,24 @@ p <- seq_results %>%
   scale_color_manual("kmer sizes",values = scale_col) +
   labs(y = "Shannon entropy", x = "Sample size")
 
-# p
+p
 
 ggsave(p,
   filename = 'conoServer_kmer_assessment_1.png',
   path = outdir, width = 4.5, height = 5, dpi = 1000, device = png)
 
+
+
+# seq_results %>% 
+#   as_tibble() %>%
+#   ggplot(aes(x = as.factor(window), y = kmer_entropy, 
+#     group = as.factor(Prop), color = as.factor(Prop))) +
+#   geom_jitter(position = position_jitter(0.1), shape = 1, size = 0.5, alpha = 0.7) +
+#   stat_summary(fun = "mean", geom = "line") +
+#   # stat_summary(fun.data=mean_sdl, geom="pointrange", size = 0.5, alpha = 0.5) +
+#   my_custom_theme() 
+#   scale_color_manual("kmer sizes",values = scale_col) +
+#   labs(y = "Shannon entropy", x = "Sample size")
 
 # Provide summary of accuracy per assembly (Subsampling.R), and bind to seq_results, then correlates
 # as precision, and entropy are indendent measurment, and unequal sample sizes, compare the relationship must be performed at the aggregate level (mean, etc.)
