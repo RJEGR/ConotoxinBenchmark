@@ -13,13 +13,14 @@ MEM=$5
 rm -rf $OUTDIR
 
 WD=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/Software/
-tool="java -jar -Xmx64G $WD/vt-builder_r8clean.jar"
+tool="java -jar -Xmx97152M $WD/vt-builder_r8clean.jar"
+
 
 java -jar -Xmx97152M vt-builder_r8clean.jar -a n -b /LUSTRE/bioinformatica_data/genomica_funcional/rgomez/Software/./I3_superfamily_PE1.fq -c /LUSTRE/bioinformatica_data/genomica_funcional/rgomez/Software/./I3_superfamily_PE2.fq -d ./output.txt -e ./log.txt -f 24 -g 150 -h 250 -j 96
 
--d ./output.txt -e ./log.txt -f 24 -g 150 -h 250 -j 96
 
-call="$tool -a n -b $forward_fq -c $reverse_fq -d $OUTDIR -f $CPU -j $MEM -g 100 -h 200"
+call="$tool -a n -b $forward_fq -c $reverse_fq -d ./output.txt -e ./log.txt -f 24 -j 100 -g 150 -h 200 "
+
 
 echo $call
 
@@ -32,3 +33,4 @@ echo $movecall
 eval $movecall
 
 exit
+
