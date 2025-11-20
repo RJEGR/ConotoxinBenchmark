@@ -78,9 +78,10 @@ df %>%
   mutate(coverage = factor(coverage, levels = c("10", "20", "50","100","200","500", "700", "1000"))) %>%
   ggplot(aes(x = coverage, y = n, group = dataset)) + 
   # ggrepel::geom_text_repel(data = data_text, aes(label = dataset), hjust = 2, vjust = -2) +
-  geom_point(color = "gray", size = 2, shape = 1) +
-  geom_line(color = "gray") +
+  # geom_point(color = "gray", size = 2, shape = 1) +
+  # geom_line(color = "gray") +
   stat_summary(fun = "mean", geom = "line", aes(group = 1), color="red") +
+  # stat_summary(fun.data=mean_se, geom="pointrange", color="red") +
   stat_summary(fun = "mean", geom = "point", aes(group = 1), color="red") +
   labs(y = "Number of full-length genes", x = "Number of pairs of reads (millions)") +
   theme_bw(base_family = "GillSans", base_size = 18) +
