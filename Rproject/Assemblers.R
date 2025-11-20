@@ -12,11 +12,11 @@ options(stringsAsFactors = FALSE, readr.show_col_types = FALSE)
 
 library(tidyverse)
 
-my_custom_theme <- function(...) {
+my_custom_theme <- function(base_size = 14, legend_pos = "top", ...) {
   base_size = 14
   theme_bw(base_family = "GillSans", base_size = base_size) +
-    theme(legend.position = "top",
-      strip.placement = "outside",
+    theme(legend.position = legend_pos,
+      strip.placement = "outside", 
       strip.background = element_rect(fill = 'gray90', color = 'white'),
       strip.text = element_text(angle = 0, size = base_size, hjust = 0), 
       axis.text = element_text(size = rel(0.7), color = "black"),
@@ -57,20 +57,6 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
   calculate_false <- function(df) {
     
     # as many assemblers use width 200 to filter contigs, count number of refseq > 200
-    # InputNsequences <- c(
-    #   Fold01=1615,
-    #   Fold02=1614,
-    #   Fold03=1621,
-    #   Fold04=1618,
-    #   Fold05=1616,
-    #   Fold06=1619,
-    #   Fold07=1614,
-    #   Fold08=1617,
-    #   Fold09=1616,
-    #   Fold10=1614,
-    #   Fold11=1617,
-    #   Fold12=1619)
-    
     
     count_Nsequences <- function() {
       
@@ -111,7 +97,6 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
   
   
   Totaldf <- df %>% 
-    # dplyr::count(vfold_set, sampling_set)  %>% 
     dplyr::count() %>%
     dplyr::rename("rawcontigs" = "n")
   
@@ -120,7 +105,8 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
   
   TP <- df %>%
     filter(reference_coverage >= reference_coverage_val) %>%
-    # dplyr::count(vfold_set, sampling_set)  %>% 
+    # Important: make distinct hits, to count only unique references (Recall), not over-inflate by N contigs!!!
+    distinct(hits) %>% 
     dplyr::count() %>%
     dplyr::rename("TP" = "n")
   
@@ -130,7 +116,6 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
   FP <- df %>%
     mutate(reference_coverage = ifelse(is.na(hits) & is.na(reference_coverage), 0, reference_coverage )) %>%
     filter(reference_coverage > is_chimeric_value &  reference_coverage < reference_coverage_val)  %>%
-    # dplyr::count(vfold_set, sampling_set) %>% 
     dplyr::count() %>%
     dplyr::rename("FP" = "n")
   
@@ -243,10 +228,132 @@ p1
 ggsave(p1, filename = 'Assemblers_.png', 
   path = outdir, width = 7, height = 5, dpi = 1000, device = png)
 
+# Figure 2
+
+metricsdf
+
+discrete_scale <- metricsdf %>% ungroup() %>% distinct(Assembler) %>% pull()
+
+n <- length(discrete_scale)
+
+scale_col <- c(ggsci::pal_startrek()(7), ggsci::pal_cosmic()(n-7))
+
+scale_col <- structure(scale_col, names = sort(discrete_scale))
+
+metricsdf_flt <- metricsdf %>% 
+  group_by(Assembler) %>% 
+  # filter-out outliers
+  mutate(Sensitivity = ifelse(rstatix::is_outlier(Sensitivity), NA, Sensitivity)) %>%
+  mutate(Precision = ifelse(rstatix::is_outlier(Precision), NA, Precision)) %>%
+  drop_na(Sensitivity, Precision)
+  
+mark_circle <- metricsdf_flt %>%
+  summarise(
+    sens_sd = sd(Sensitivity), pre_sd = sd(Precision), n = n(),
+    Sensitivity = mean(Sensitivity), Precision = mean(Precision))
+
+line_data <- metricsdf_flt %>% 
+  filter(Assembler == "TRINITY") %>%
+  summarise(Sensitivity = max(Sensitivity), Precision = max(Precision), label = "Baseline")
+
 
 metricsdf %>%
-  ggplot(aes(TP, Precision)) + 
-  geom_point()
+  group_by(Assembler) %>% 
+  mutate(Sensitivity = ifelse(rstatix::is_outlier(Sensitivity), NA, Sensitivity)) %>%
+  mutate(Precision = ifelse(rstatix::is_outlier(Precision), NA, Precision)) %>%
+  drop_na(Sensitivity, Precision) %>%
+  mutate(facet = "A) Benchmark metrics") %>%
+  ggplot(aes(x = Sensitivity, y = Precision)) +  
+  facet_grid(~ facet) +
+  geom_segment(data = line_data, aes(xend=Sensitivity, yend=0),  
+    color = "gray40", linetype = "dashed", linewidth = 0.5) +
+  geom_segment(data = line_data, aes(xend=0,  yend=Precision),  
+    color = "gray40", linetype = "dashed", linewidth = 0.5) +
+  geom_text(data = line_data, aes(x = Sensitivity, y = 0, label = label),  
+    hjust = -0.5, vjust = 1.5,color = "gray50", angle = 90, size = 3) +
+  geom_point(aes(color = Assembler), alpha = 0.5) +
+  scale_y_continuous(limits = c(0,1)) + scale_x_continuous(limits = c(0,1)) +
+  scale_color_manual("", values = scale_col) +
+  ggforce::geom_mark_circle(
+    data = mark_circle,
+    aes(
+      Sensitivity, Precision,
+      group = Assembler, 
+      # label = Assembler, 
+      fill= Assembler, color = Assembler),
+    label.buffer = unit(0.5, 'lines'),
+    # label.margin = margin(0, 0, 0, 0, "mm"),
+    label.family = "GillSans",
+    label.colour = "inherit",
+    label.fontsize = 5,
+    con.colour = "inherit",
+    con.cap = 0,
+    con.type = "none", #elbow
+    con.size = 0.5,
+    con.border = "none",
+    con.linetype = 2,
+    expand = unit(2.5, "mm"), #radius = expand
+    alpha = 0.2) +
+  my_custom_theme(legend_pos = "none") -> p
+
+p <- p + 
+  ggrepel::geom_text_repel(data = mark_circle, 
+    aes(label = Assembler, color = Assembler), 
+    max.overlaps = 100, family = "GillSans", size = 2.5,
+      
+    # nudge_x = .15,
+    box.padding = 0.5,
+    # nudge_y = 1,
+    segment.curvature = -0.1
+    # segment.ncp = 3,
+    # segment.angle = 20
+    ) 
+
+ggsave(p, filename = 'Assemblers_Precision_Sensitivity.png', 
+  path = outdir, width = 4.5, height = 4.5, dpi = 1000, device = png)
+
+
+
+
+# quit()
+
+
+p2 <- metricsdf %>% group_by(Assembler) %>% 
+  summarise(sd = sd(Accuracy), x = mean(Accuracy)) %>%
+  arrange(desc(x)) %>%
+  mutate(label = paste0(Assembler, " (",  round(x, 3), ")")) %>%
+  mutate(Assembler = factor(Assembler, levels = rev(unique(Assembler)))) %>%
+  mutate(facet = "B) Accuracy") %>%
+  mutate(xmin = x-sd, xmax = x+sd, xlab = xmax+0.1) %>%
+  mutate(xlab = ifelse(Assembler == "STRINGTIE", 0.25, xlab)) %>% 
+  ggplot() + 
+  facet_grid(~ facet) +
+  geom_col(aes(y = Assembler, x = x, fill= Assembler, color = Assembler), width = 0.7) + 
+  geom_text(aes(y = Assembler, x = xlab, label = label), hjust = 0.1, size = 3) +
+  geom_errorbar(aes(y = Assembler, x = x, xmin = xmin, xmax = xmax), width = 0.15, alpha = 0.3, color = "gray70") +
+  scale_x_continuous("",limits = c(0,1)) +
+  scale_y_discrete(position = "right")+
+  scale_color_manual("", values = scale_col) +
+  scale_fill_manual("", values = scale_col) +
+  my_custom_theme(legend_pos = "none", axis.ticks.y = element_blank(), 
+    axis.text.y = element_blank(), axis.title.y = element_blank())  
+
+p2
+
+metricsdf %>% group_by(Assembler) %>% 
+  summarise(sd = sd(Ratio), x = mean(Ratio)) %>%
+  arrange(desc(x)) %>%
+  mutate(Assembler = factor(Assembler, levels = unique(Assembler))) %>% #View()
+  ggplot(aes(y = Assembler, x = x)) + 
+  geom_col(aes(fill= Assembler, color = Assembler), width = 0.7) + 
+  geom_text(aes(label = round(x, 3)), hjust = -0.15, size = 3.5) +
+  scale_x_continuous("Correct/incorrect ratio (C/I)",limits = c(0,12)) +
+  scale_color_manual("", values = scale_col) +
+  scale_fill_manual("", values = scale_col) +
+  my_custom_theme(legend_pos = "none")
+
+library(patchwork)
+# p + p2
 
 # Inner join of conotoxins, and assemblers,
 
@@ -256,27 +363,28 @@ upsetdf <- transratedf %>%
   filter(!is.na(hits)) %>%
   filter(reference_coverage > 0.95) %>%
   distinct(Assembler, hits) #%>%
-  # group_by(hits) %>%
-  # summarise(across(Assembler, .fns = list), n = n()) 
+# group_by(hits) %>%
+# summarise(across(Assembler, .fns = list), n = n()) 
 
 gene2ven <- split(upsetdf$hits, upsetdf$Assembler)
 
 gene2ven <- lapply(gene2ven, unlist)
 
-keep <- names(gene2ven) %in% c("SPADES", "TRINITY", "PLASS", "STRINGTIE")
+keep <- names(gene2ven) %in% c("SPADES", "TRINITY", "PLASS", "STRINGTIE", "RNABLOOM")
 
 ggVennDiagram(gene2ven[keep],label_font = "GillSans", label_size = 5,
   relative_height = 0.5,relative_width = 0.8, force_upset = F) +
-scale_fill_gradient(low="grey90",high = "red")
+  scale_fill_gradient(low="grey90",high = "red")
 
 ggVennDiagram(gene2ven,label_font = "GillSans", label_size = 7,
   relative_height = 1,relative_width = 2, force_upset = T) 
-  # scale_fill_gradient(low="grey90",high = "red",)
+# scale_fill_gradient(low="grey90",high = "red",)
 
 
 # file_out <- file.path(outdir, "transrate_assemblers.rds")
 
 # write_rds(transratedf, file = file_out)
+
 
 # According to Cahis et al., 2012
 # By assembler, assess/Classify hits, to fragmented, chimeric, allelic, paralogue, and other genomic, based on overlap -----
@@ -285,7 +393,6 @@ ggVennDiagram(gene2ven,label_font = "GillSans", label_size = 7,
 dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/1_assembly/blast_outputs/"
 
 str(f <- list.files(path = dir, pattern = "1.blast", recursive = T, full.names = TRUE))
-
 
 blast_df <- read_outfmt6(f[1])
 
@@ -301,7 +408,7 @@ blast_df %>%
   group_by(db) %>%
   dplyr::count(target, sort = T) %>%
   mutate()
-  # dplyr::rename("allele" = "n") 
+# dplyr::rename("allele" = "n") 
 
 # (Quimera or multi) Contigs with several significant hits, all specific to this contig, were called
 
@@ -345,7 +452,6 @@ testRes <- corrplot::cor.mtest(M, conf.level = 0.95)
 corrplot::corrplot(M, p.mat = testRes$p ,method = "color", type="upper", order = "hclust", insig = "label_sig")
 
 
-quit()
 
 # transratedf %>% 
 
