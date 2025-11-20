@@ -11,3 +11,7 @@ INPUTS/
 1_assembly/transrate_contigs_dir/
 1_assembly/FASTA_DIR
 1_assembly/blast_outputs
+1_assembly/transrate_contigs_reference_dir/
+3_kmer_dir/transrate_contigs_dir/
+MULTIQC_VIZ_DIR/
+test_subsampling_dir/
