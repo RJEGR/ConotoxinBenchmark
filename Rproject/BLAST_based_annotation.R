@@ -1,12 +1,12 @@
 
 # According to Cahis et al., 2012
-# By assembler, annotate hits, to fragmented, chimeric, allelic, paralogue, and other genomic, based on overlaps -----
+# By assembler (OR better by kmer), annotate hits, to fragmented, chimeric, allelic, paralogue, and other genomic, based on overlaps -----
 
 # cd /Users/cigom/Documents/GitHub/ConotoxinBenchmark/1_assembly
 
 # scp -r rgomez@omica.cicese.mx:/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/1_assembly_dir/Folds_200x_dir/FASTA_DIR/transrate_contigs_dir/blast_outputs .
 
-
+# scp -r rgomez@omica.cicese.mx:/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/3_kmer_dir/multiple_analysis_dir/transrate_contigs_dir/blast_outputs
 
 # 1. merge to best reciprocal, 
 # 2. run blast annotation
@@ -22,8 +22,25 @@ if(!is.null(dev.list())) dev.off()
 
 options(stringsAsFactors = FALSE, readr.show_col_types = FALSE)
 
-dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/1_assembly/blast_outputs/"
+my_custom_theme <- function(...) {
+  base_size = 14
+  theme_bw(base_family = "GillSans", base_size = base_size) +
+    theme(legend.position = "top",
+      strip.placement = "outside",
+      strip.background = element_rect(fill = 'gray90', color = 'white'),
+      strip.text = element_text(angle = 0, size = base_size, hjust = 0), 
+      axis.text = element_text(size = rel(0.7), color = "black"),
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.y = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.x = element_blank(),
+      ...
+    )
+}
 
+# dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/1_assembly/blast_outputs/"
+
+dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/3_kmer_dir/transrate_contigs_dir/blast_outputs//" 
 str(file_list_1 <- list.files(path = dir, pattern = "1.blast", recursive = T, full.names = TRUE))
 
 str(file_list_2 <- list.files(path = dir, pattern = "2.blast", recursive = T, full.names = TRUE))
@@ -45,6 +62,8 @@ nlines <- function(f) {
 # lapply(file_list, nlines)
 
 blast_annotation <- function(f) {
+  
+  require(tidyverse)
   
   cat("\nReading\n")
   cat(f)
@@ -283,21 +302,44 @@ blast_annotation <- function(f) {
 # blast_annotation(file_list_1[1])
 # blast_annotation(file_list_2[1])
 
-blast_annotation(file_list[6])
+# blast_annotation(file_list[6])
 
-annotation_df <- lapply(file_list, blast_annotation)
+annotation_df_2 <- lapply(file_list_2, blast_annotation)
 
-annotation_df <- do.call(rbind,annotation_df)
+annotation_df_2 <- do.call(rbind,annotation_df_2)
 
-annotation_df <- annotation_df %>%
+annotation_df_2 <- annotation_df_2 %>%
   as_tibble() %>%
   mutate(vfold_set = sapply(strsplit(file_name, "_"), `[`, 1)) %>%
-  mutate(Assembler = sapply(strsplit(file_name, "_"), `[`, 7)) # 5
+  # mutate(Assembler = sapply(strsplit(file_name, "_"), `[`, 7)) # 5
+  mutate(kmer = sapply(strsplit(file_name, "_"), `[`, 7)) %>%
+  mutate(kmer = gsub(".2.blast", "", kmer))
 
-annotation_df %>% count(final_annotation)
+annotation_df_1 <- lapply(file_list_1, blast_annotation)
+
+annotation_df_1 <- do.call(rbind,annotation_df_1)
+
+annotation_df_1 <- annotation_df_1 %>%
+  as_tibble() %>%
+  mutate(vfold_set = sapply(strsplit(file_name, "_"), `[`, 1)) %>%
+  mutate(kmer = sapply(strsplit(file_name, "_"), `[`, 5))
+
+
+annotation_df <- rbind(annotation_df_2, annotation_df_1)
+
+annotation_df %>% count(vfold_set, kmer)
+
+annotation_df %>% count(kmer, final_annotation)
+
+
+scale_fill <- c(ggsci::pal_startrek(alpha = 0.5)(7), ggsci::pal_cosmic(alpha = 0.5)(n-7))
+
 
 annotation_df %>%
-  group_by(Assembler) %>%
+  group_by(kmer) %>%
   mutate(frac = n/sum(n)) %>%
-  ggplot(aes(x = frac, y = Assembler, fill = prelim_cat)) +
-  geom_col()
+  ggplot(aes(x = frac, y = kmer, fill = final_annotation)) +
+  facet_wrap(final_annotation ~ ., scales = "free", nrow = 3) +
+  geom_col() +
+  ggsci::scale_fill_startrek(name = "") +
+  my_custom_theme()
