@@ -59,20 +59,6 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
   calculate_false <- function(df) {
     
     # as many assemblers use width 200 to filter contigs, count number of refseq > 200
-    # InputNsequences <- c(
-    #   Fold01=1615,
-    #   Fold02=1614,
-    #   Fold03=1621,
-    #   Fold04=1618,
-    #   Fold05=1616,
-    #   Fold06=1619,
-    #   Fold07=1614,
-    #   Fold08=1617,
-    #   Fold09=1616,
-    #   Fold10=1614,
-    #   Fold11=1617,
-    #   Fold12=1619)
-    
     
     count_Nsequences <- function() {
       
@@ -113,7 +99,6 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
   
   
   Totaldf <- df %>% 
-    # dplyr::count(vfold_set, sampling_set)  %>% 
     dplyr::count() %>%
     dplyr::rename("rawcontigs" = "n")
   
@@ -122,7 +107,8 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
   
   TP <- df %>%
     filter(reference_coverage >= reference_coverage_val) %>%
-    # dplyr::count(vfold_set, sampling_set)  %>% 
+    # Important: make distinct hits, to count only unique references (Recall), not over-inflate by N contigs!!!
+    distinct(hits) %>% 
     dplyr::count() %>%
     dplyr::rename("TP" = "n")
   
@@ -132,7 +118,6 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
   FP <- df %>%
     mutate(reference_coverage = ifelse(is.na(hits) & is.na(reference_coverage), 0, reference_coverage )) %>%
     filter(reference_coverage > is_chimeric_value &  reference_coverage < reference_coverage_val)  %>%
-    # dplyr::count(vfold_set, sampling_set) %>% 
     dplyr::count() %>%
     dplyr::rename("FP" = "n")
   
@@ -203,9 +188,41 @@ metricsdf <- transratedf %>%
   ) 
 
 
-cols_to <- c("Accuracy", "Precision", "Sensitivity")
+metricsdf %>%
+  ggplot(aes(Sensitivity, Precision)) +
+  geom_point(aes(, color = kmer)) +
+  ggplot2::geom_smooth(method = "lm", se = F) +
+  my_custom_theme(plot.tag = element_text(size = 7, hjust = 0))
+  
+# Estimates ROC curves ====
 
-recode_to <- structure(c("A) Accuracy", "B) Precision", "C) Sensitivity"), names = cols_to)
+library(MESS)
+
+# Sort values by recall (x-axis)
+df <- metricsdf[order(metricsdf$Sensitivity),]
+
+df %>% group_by(kmer) %>% 
+  reframe(AUC = auc(Precision, Sensitivity)) %>%
+  arrange(desc(kmer)) %>%
+  mutate(kmer = factor(kmer, levels = unique(kmer))) %>%
+  ggplot(aes(y = kmer, x = AUC)) +geom_col() +
+  geom_text(aes(label = round(AUC, 3)), hjust = -0.15, size = 3.5) 
+
+library(PRROC)
+
+# If you have scores for foreground (positives) and background (negatives)
+
+pr <- pr.curve(scores.class0 = metricsdf$TP, scores.class1 = metricsdf$FP, curve = TRUE)
+
+plot(pr)
+
+print(pr$auc.integral)
+
+
+
+cols_to <- c("Ratio","Accuracy", "Precision", "Sensitivity", "Fscore")
+
+recode_to <- structure(c(" Ratio","A) Accuracy", "B) Precision", "C) Sensitivity", "Fscore"), names = cols_to)
 
 base_size <- 14
 
@@ -233,6 +250,18 @@ p1
 ggsave(p1, filename = 'kmer_analysis.png', 
   path = outdir, width = 4.5, height = 6, dpi = 1000, device = png)
 
+
+metricsdf %>%
+  select(-TP, -FP, -FN, -rawcontigs) %>%
+  pivot_longer(cols = cols_to, values_to = "y", names_to = "facet") %>%
+  dplyr::mutate(facet = dplyr::recode_factor(facet, !!!recode_to)) %>%
+  drop_na() %>%
+  ggplot(aes(y = y, x = as.factor(kmer), color = facet, group = facet)) +
+  stat_summary(fun = "mean", geom = "line") +
+  stat_summary(fun = "mean", geom = "point")
+
+
+write_tsv(metricsdf, file = file.path(outdir, "metrics_kmer.tsv"))
 
 quit()
 
