@@ -523,5 +523,4 @@ LONGERDF %>% left_join(data) %>%
 # 2) Estimate genomic complexity using espectra (https://github.com/TGAC/KAT)
 #' @ K-mer spectra reveal information not only about the data quality (level of errors, sequencing biases, completeness of sequencing coverage and potential contamination) but also of genomic complexity (size, karyotype, levels of heterozygosity and repeat content; Simpson, 2014). 
 
-# 3) Vizualize as MDS, or t-SNE (https://pmc.ncbi.nlm.nih.gov/articles/PMC12047656/)
 
