@@ -12,6 +12,8 @@ if(!is.null(dev.list())) dev.off()
 
 library(tidyverse)
 
+library(tidyselect)
+
 options(stringsAsFactors = FALSE, readr.show_col_types = FALSE)
 
 my_custom_theme <- function(...) {
@@ -30,11 +32,13 @@ my_custom_theme <- function(...) {
     )
 }
 
-outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
+# outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
+
+outdir <- "D://GitHub/ConotoxinBenchmark/INPUTS/"
 
 file_out <- file.path(outdir, "curated_nuc_conoServerDB.rds")
 
-data <- read_rds(file_out)
+data <- read_rd(file_out)
 
 data %>%
   mutate(width = nchar(sequence)) %>%
