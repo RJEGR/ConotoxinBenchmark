@@ -1,8 +1,11 @@
 
-#  known and correctly annotated conotoxins (representing our true positive dataset) and some random sequences of venomous animals (spiders, snakes, sea urchins, jellyfish) available on UniProtKB (to represent the true negative dataset).
+#  known and correctly annotated conotoxins (representing our true positive dataset) +
+#  # and some random sequences of venomous animals (spiders, snakes, sea urchins, jellyfish) available on UniProtKB (to represent the true negative dataset).
 
 
-outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS"
+outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS"
+
+setwd(outdir)
 
 file_out <- file.path(outdir, "uniprotkb_taxonomy_id_33208_AND_cc_tiss_2025_02_19.fasta.gz")
 
