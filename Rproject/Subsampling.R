@@ -71,7 +71,10 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
       
       # Temporal directory where vfolds_resampling_dir are found
       
-      outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/vfolds_resampling_dir/"
+      # outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/vfolds_resampling_dir/"
+      # 
+      outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/vfolds_resampling_dir/"
+      
       
       f <- list.files(path = outdir, pattern = ".fasta", full.names = T)
       
@@ -158,13 +161,20 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
 }
 # Reading conoServer info
 
-outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
+
+outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS"
+
+
+# outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
 
 f <- list.files(path = outdir, pattern = "curated_nuc_conoServerDB.rds", full.names = T)
 
 conoServerDB <- read_rds(f) %>% dplyr::rename("hits" = "entry_id")
 
-dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir/Trinity_dir/transrate_contigs_dir/"
+# dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir/Trinity_dir/transrate_contigs_dir/"
+
+dir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/2_subsampling_dir/Trinity_dir/transrate_contigs_dir/"
+
 
 read_files <- function(dir, Assembly = ...) {
   
@@ -185,7 +195,9 @@ read_files <- function(dir, Assembly = ...) {
 transratedf <- read_files(dir, Assembly = "Trinity")
 
 
-dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir/Spades_dir/transrate_contigs_dir/"
+# dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir/Spades_dir/transrate_contigs_dir/"
+dir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/2_subsampling_dir/Spades_dir/transrate_contigs_dir/"
+
 
 
 transratedf2 <- read_files(dir, Assembly = "Spades")
@@ -308,7 +320,7 @@ p1 <- metricsdf %>%
   # ylim(0,NA) +
   my_custom_theme()
 
-# p1 
+p1
 
 ggsave(p1, filename = 'Subsampling.png', 
   path = outdir, width = 6, height = 6, dpi = 1000, device = png)
