@@ -10,9 +10,10 @@ rm(list = ls())
 
 if(!is.null(dev.list())) dev.off()
 
+# pak::pkg_install("tidyverse")
+
 library(tidyverse)
 
-library(tidyselect)
 
 options(stringsAsFactors = FALSE, readr.show_col_types = FALSE)
 
@@ -34,11 +35,11 @@ my_custom_theme <- function(...) {
 
 # outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
 
-outdir <- "D://GitHub/ConotoxinBenchmark/INPUTS/"
+outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS"
 
 file_out <- file.path(outdir, "curated_nuc_conoServerDB.rds")
 
-data <- read_rd(file_out)
+data <- read_rds(file_out)
 
 data %>%
   mutate(width = nchar(sequence)) %>%
@@ -263,17 +264,21 @@ accuracy_df <- accuracy_df %>%
   pivot_wider(names_from = Assembly, values_from = Precision) %>%
   dplyr::rename("Prop" = sampling_set) 
 
+accuracy_df %>% ggplot(aes(Prop, Trinity)) + geom_point()
+  
 cordf <- seq_results %>% 
   as_tibble()  %>%
   group_by(Prop, window) %>%
   summarise(kmer_entropy = mean(kmer_entropy)) %>%
   pivot_wider(names_from = window, values_from = kmer_entropy) %>%
+  mutate(Prop = as.character(Prop)) %>%
   right_join(accuracy_df) %>% ungroup() 
-  # ungroup() %>% mutate_if(is.character, as.double)
+  # 
 
 
 cordf %>%
   # select(Prop, `21`, Trinity) %>%
+  ungroup() %>% mutate_if(is.character, as.double) %>%
   select_if(is.double) %>%
   cor(method = "pearson") -> M
 
@@ -286,9 +291,10 @@ seq_results %>%
   as_tibble()  %>%
   group_by(Prop, window) %>%
   summarise(kmer_entropy = mean(kmer_entropy)) %>%
+  mutate(Prop = as.character(Prop)) %>%
   right_join(accuracy_df)  %>%
   pivot_longer(cols = c("Spades", "Trinity"), names_to = "Assembly", values_to = "Precision") %>%
-  ggplot(aes(Precision, kmer_entropy, color = Assembly)) +
+  ggplot(aes(Precision, kmer_entropy, color = as.factor(window ))) +
   facet_grid(~ Assembly, scales = "free") +
   geom_point(shape = 1) +
   geom_smooth(method = lm, se = FALSE) +
