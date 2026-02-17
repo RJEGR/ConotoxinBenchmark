@@ -91,6 +91,7 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
     # False Negatives (FN): Transcripts present in the simulated data but not assembled. 
     ## TP - (N reference sequences in InputNsequences) 
     
+    InputNsequences <- count_Nsequences()
     
     data.frame(InputNsequences) %>% 
       as_tibble(rownames = "vfold_set") %>% 

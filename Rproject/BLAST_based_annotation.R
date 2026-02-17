@@ -4,14 +4,17 @@
 
 # cd /Users/cigom/Documents/GitHub/ConotoxinBenchmark/1_assembly
 
-# scp -r rgomez@omica.cicese.mx:/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/1_assembly_dir/Folds_200x_dir/FASTA_DIR/transrate_contigs_dir/blast_outputs .
 
+
+# scp -r rgomez@omica.cicese.mx:/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/1_assembly_dir/Folds_200x_dir/FASTA_DIR/transrate_contigs_reference_dir/blast_outputs .
+# 
 # scp -r rgomez@omica.cicese.mx:/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/3_kmer_dir/multiple_analysis_dir/transrate_contigs_dir/blast_outputs
 
 # 1. merge to best reciprocal, 
 # 2. run blast annotation
 
 # Load necessary packages
+# 
 library(dplyr)
 library(tidyr)
 library(tidyverse)
@@ -40,14 +43,23 @@ my_custom_theme <- function(...) {
 
 # dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/1_assembly/blast_outputs/"
 
-dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/3_kmer_dir/transrate_contigs_dir/blast_outputs//" 
+# dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/3_kmer_dir/transrate_contigs_dir/blast_outputs//" 
+
+dir <- "C://Users//cinai/OneDrive/Documentos/PUBLICATION_DIR/3_kmer_dir/transrate_contigs_dir/blast_outputs/"
+
+dir <- "//wsl.localhost/Debian/home/ricardo/blast_outputs/"
+
 str(file_list_1 <- list.files(path = dir, pattern = "1.blast", recursive = T, full.names = TRUE))
 
 str(file_list_2 <- list.files(path = dir, pattern = "2.blast", recursive = T, full.names = TRUE))
 
-file_list <- file_list_2
+file_list <- file_list_1
 
-file_list <- file_list[!grepl("MERGEPIPE|PLASS", file_list)] # Huge sizes because many contigs asmb
+file_list <- file_list[!grepl("MERGEPIPE|PLASS", file_list)] # Huge sizes because many contigs in PLASS
+
+file_list <- file_list[grepl("Fold01_*", basename(file_list))] # Huge sizes because many contigs asmb
+
+
 
 nlines <- function(f) {
   cat("\nReading\n")
@@ -255,7 +267,8 @@ blast_annotation <- function(f) {
       for(x in 1:(nrow(hits_intervals)-1)) {
         for(y in (x+1):nrow(hits_intervals)) {
           ov <- overlap_ratio(hits_intervals$start[x], hits_intervals$end[x], hits_intervals$start[y], hits_intervals$end[y])
-          if(!is.na(ov) > 0.5) {overlap_flag <- TRUE; break}
+          # if(!is.na(ov) > 0.5) {overlap_flag <- TRUE; break} # ← WRONG!
+          if((!is.na(ov)) > 0.5) {overlap_flag <- TRUE; break} # ← This is what actually runs!
         }
         if(overlap_flag) break
       }
@@ -299,21 +312,17 @@ blast_annotation <- function(f) {
   
 }
 
-# blast_annotation(file_list_1[1])
-# blast_annotation(file_list_2[1])
+ 
+annotation_df_2 <- lapply(file_list, blast_annotation)
 
-# blast_annotation(file_list[6])
-
-annotation_df_2 <- lapply(file_list_2, blast_annotation)
-
-annotation_df_2 <- do.call(rbind,annotation_df_2)
+annotation_df_2 <- do.call(rbind, annotation_df_2)
 
 annotation_df_2 <- annotation_df_2 %>%
   as_tibble() %>%
   mutate(vfold_set = sapply(strsplit(file_name, "_"), `[`, 1)) %>%
   # mutate(Assembler = sapply(strsplit(file_name, "_"), `[`, 7)) # 5
-  mutate(kmer = sapply(strsplit(file_name, "_"), `[`, 7)) %>%
-  mutate(kmer = gsub(".2.blast", "", kmer))
+  mutate(file_name = sapply(strsplit(file_name, "_"), `[`, 7)) %>%
+  mutate(file_name = gsub(".2.blast", "", file_name))
 
 annotation_df_1 <- lapply(file_list_1, blast_annotation)
 
