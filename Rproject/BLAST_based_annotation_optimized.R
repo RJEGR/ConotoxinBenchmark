@@ -10,6 +10,11 @@
 # library(furrr)
 # library(IRanges)
 
+rm(list = ls())
+
+
+Sys.setenv(R_MAX_VSIZE = "100Gb")
+
 install_load <- function(package) {
   if (!require(package, character.only = TRUE)) {
     install.packages(package)
@@ -18,11 +23,10 @@ install_load <- function(package) {
 }
 
 # Apply the function to multiple packages
-packages <- c("dplyr", "tidyr", "ggplot2", "ggsci", "furrr", "IRanges")
+packages <- c("dplyr", "tidyr", "ggplot2", "ggsci", "furrr", "IRanges", "readr")
 
 sapply(packages, install_load)
 
-rm(list = ls())
 
 if(!is.null(dev.list())) dev.off()
 
@@ -62,7 +66,7 @@ read_blast_outfmt6 <- function(f) {
     "qstart", "qend", "sstart", "send", "evalue", "bitscore", "qlen", "slen"
   )
   
-  read_tsv(f, col_names = FALSE, show_col_types = FALSE) %>%
+  readr::read_tsv(f, col_names = FALSE, show_col_types = FALSE) %>%
     setNames(outfmt6_cols) %>%
     mutate(db = basename(f))
 }
@@ -361,6 +365,9 @@ str(file_list <- list.files(path = dir, pattern = pattern, recursive = T, full.n
 
 file_list <- file_list[!grepl("MERGEPIPE", file_list)] # Huge sizes because many contigs in PLASS
 
+file_list <- file_list[!grepl("PLASS", file_list)] # Huge sizes because many contigs in PLASS
+
+outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/BLAST_based_annotation_dir/"
 
 splits <-  unique(sapply(strsplit(basename(file_list), "_"), `[`, 1))
 
@@ -373,13 +380,18 @@ process_split_memory_efficient <- function(split_name) {
   # Process with memory monitoring
   annotation_results <- annotate_blast_files(files, parallel = TRUE)
   
-  filename <- paste0("BLAST_based_annotation_", split_name, ".rds")
-  write_rds(annotation_results, file = filename)
+  filename <- paste0("BLAST_based_overlaps", split_name, ".rds")
+  
+  filename <- file.path(outdir, filename)
+  
+  readr::write_rds(annotation_results, file = filename)
   
   cat("Saved:", filename, "\n")
   
   # Cleanup
   rm(annotation_results)
+  
+  
   gc()
 }
 
@@ -388,6 +400,8 @@ for (i in splits) {
   process_split_memory_efficient(i)
 }
 
+
+annotation_results <- list.files(outdir, full.names = T)
 
 # annotation_results <- annotate_blast_files(file_list, parallel = TRUE)
 
@@ -441,3 +455,4 @@ annotation_results %>%
   geom_col() +
   scale_fill_startrek() +
   my_custom_theme()
+
