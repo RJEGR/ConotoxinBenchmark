@@ -1,12 +1,7 @@
 
 # January 2026
-# LOAD transratedf derived form assemblers.R
-# FORMAT input to group conotoxins based on intersection between assemblers
-# considered filter reference_coverage  > 0.95 or not
-# for those groups, estimates mean se reference_coverage  values to second facet of contig coverage plot, preserving assembler groups
-# plot upset plot in facet1 and join to facet2
-# # considered to label w colors gene superfamilies or not..
-
+# Sanity check of y axis are the same between plots
+# 
 
 rm(list = ls())
 
@@ -15,7 +10,7 @@ if(!is.null(dev.list())) dev.off()
 options(stringsAsFactors = FALSE, readr.show_col_types = FALSE)
 
 library(tidyverse)
-
+library(patchwork)
 
 extrafont::loadfonts(device = "win")
 
@@ -40,215 +35,213 @@ outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS
 
 f <- list.files(path = outdir, pattern = "curated_nuc_conoServerDB.rds", full.names = T)
 
-conoServerDB <- read_rds(f) %>% dplyr::rename("hits" = "entry_id")
+# conoServerDB <- read_rds(f) %>% dplyr::rename("hits" = "entry_id")
 
 
 dir <- "C://Users//cinai/OneDrive/Escritorio/transrate_contigs_reference_dir/"
 
-
 transratedf <- read_tsv( file.path(dir, "benchmark_assemblers.tsv"))
-
 
 
 # library(ggVennDiagram)
 # 
-assemblers <- c("STRINGTIE","SPADES", "TRINITY", "RNABLOOM", "IDB", "MEGAHIT")
+assemblers <- c("STRINGTIE","SPADES", "TRINITY", "RNABLOOM", "IDB", "MEGAHIT", "PLASS")
 
-fltr_data <- transratedf %>% 
+dat <- transratedf %>% 
   filter(Assembler %in% assemblers) %>%
   dplyr::filter(!is.na(hits)) %>%
-  dplyr::filter(reference_coverage > 0.9) %>%
+  # dplyr::filter(reference_coverage > 0.9) %>%
   dplyr::distinct(Assembler, reference_coverage, hits) 
 
 
-fltr_data <- transratedf %>% 
+# dat <- transratedf %>% 
   # filter(Assembler %in% assemblers) %>%
-  filter(!is.na(hits)) %>%
-  filter(reference_coverage > 0.5) %>%
-  mutate(summarise = "< 80 % alignment") %>%
-  mutate(summarise = ifelse(reference_coverage >= 0.8, ">= 80% alignment", summarise)) %>%
-  mutate(summarise = ifelse(reference_coverage >= 0.9, ">= 90% alignment", summarise)) %>%
-  mutate(summarise = ifelse(reference_coverage >= 0.95, ">= 95% alignment", summarise)) %>%
-  mutate(summarise = ifelse(reference_coverage == 1, "100% alignment", summarise)) %>%
-  dplyr::distinct(Assembler, summarise, reference_coverage, hits)
+  # filter(!is.na(hits)) %>%
+  # filter(reference_coverage > 0.95) %>%
+  # mutate(summarise = "< 80 % alignment") %>%
+  # mutate(summarise = ifelse(reference_coverage >= 0.8, ">= 80% alignment", summarise)) %>%
+  # mutate(summarise = ifelse(reference_coverage >= 0.9, ">= 90% alignment", summarise)) %>%
+  # mutate(summarise = ifelse(reference_coverage >= 0.95, ">= 95% alignment", summarise)) %>%
+  # mutate(summarise = ifelse(reference_coverage == 1, "100% alignment", summarise)) %>%
+  # dplyr::distinct(Assembler, hits)
 
 
-UPSETDF <- fltr_data %>%
-  filter(reference_coverage > 0.95) %>%
-  group_by(hits, summarise) %>% # omit summarise
-  dplyr::distinct(Assembler) %>% 
-  summarise(across(Assembler, .fns = list), n = n()) %>% arrange(desc(n))
-
-
-
-n_pallet <- length(unique(fltr_data$summarise))
-
-scale_col <- ggsci::pal_uchicago(alpha = 0.8)(n_pallet) 
-
-scale_col <- structure(scale_col, names = sort(unique(fltr_data$summarise)))
-
-scale_fill <- ggsci::pal_uchicago(alpha = 0.8)(n_pallet) 
-
-scale_fill <- structure(scale_fill, names = sort(unique(fltr_data$summarise)))
-
-
-library(ggupset)
-
-# UPSETDF %>% mutate(Assembler = sapply(Assembler     , paste, collapse = "-")) %>%
-#   group_by(Assembler) %>%
-#   summarise(elements = list(hits), count = n())
-
-P <- UPSETDF %>%
-  # filter(n <= 2) %>%
-  # mutate(facet = "C) Intersected") %>%
-  ggplot(aes(x = Assembler)) +
-  # geom_bar(position = position_dodge(width = 1), color = "black", linewidth = 0.2) +
-  geom_bar(position = position_stack(), linewidth = 0.2, width = 0.5) +
-  # geom_segment(aes(xend = CONTRAST_DE, yend = n, y = Inf, color = SIGN), linewidth = 1) +
-  geom_text(stat='count', aes(label = after_stat(count)),color = "black",
-            position = position_stack(), vjust = -0.2, family = "Gill Sans MT", size = 2.5) +
-  ggupset::scale_x_upset(order_by = "freq", reverse = F) +
-  axis_combmatrix(sep = ";", override_plotting_function = function(df){
-    ggplot(df, aes(x= at, y= single_label)) +
-      geom_rect(aes(fill= index %% 2 == 0), ymin=df$index-0.5,
-                ymax=df$index+0.5, xmin=0, xmax=1) +
-      geom_point(aes(color= observed), size = 3) +
-      # geom_line(data= function(dat) dat[dat$observed, ,drop=FALSE],
-      #           aes(group = labels), size= 1.2) +
-      ylab("") + xlab("") +
-      scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
-      scale_fill_manual(values= c(`TRUE` = "white", `FALSE` = "#F7F7F7")) +
-      scale_color_manual(values= c(`TRUE` = "black", `FALSE` = "#E0E0E0")) +
-      # my_custom_theme()
-      guides(color="none", fill="none") +
-      theme(
-        panel.background = element_blank(),
-        axis.text.x = element_blank(),
-        axis.ticks.y = element_blank(),
-        axis.ticks.length = unit(0, "pt"),
-        axis.title.y = element_blank(),
-        axis.title.x = element_blank(),
-        axis.line = element_blank(),
-        panel.border = element_blank()
-      )
-  })
-
-P
-
-# https://albert-rapp.de/posts/ggplot2-tips/26_upset_charts/26_upset_charts.html
-
-# built_plot <- ggplot_build(P)
+# Create combinations of assemblers for each hit
 # 
-# intersection_data <- built_plot$data[[1]]
+hits_combinations <- dat |>
+  distinct(Assembler, hits) |>
+  group_by(hits) |>
+  summarise(
+    combination = paste(sort(unique(Assembler)), collapse = ","),
+    n_assemblers = n_distinct(Assembler),
+    .groups = "drop"
+  ) |>
+  count(combination, name = "count")
 
-# 
-# 
-# 
-# 
+# Reorder by count (descending)
+hits_combinations <- hits_combinations |>
+  mutate(combination = fct_reorder(combination, count, .desc = TRUE))
+
+# Get assembler counts
+assembler_counts <- dat |>
+  distinct(Assembler, hits) |>
+  count(Assembler, name = "hits_count") |>
+  arrange(hits_count) |>
+  mutate(Assembler = fct_reorder(Assembler, hits_count, .desc = TRUE))
+  
+
+# Create intersection points data (assembler x combination)
+points_data <- hits_combinations |>
+  mutate(
+    assemblers = str_split(combination, ",")
+  ) |>
+  unnest(assemblers) |>
+  mutate(
+    assemblers = factor(assemblers, levels = levels(assembler_counts$Assembler)),
+    combination = factor(combination, levels = levels(hits_combinations$combination))
+  ) |>
+  filter(assemblers != "")
+
+combination_lev <- rev(levels(hits_combinations$combination))
+
+# 1. Main bar chart (hits per combination)
+bar_chart <- hits_combinations |>
+  mutate(label = paste0(" (", count,")")) |>
+  mutate(col = ifelse( grepl(",", combination), "Intersect", "Unique")) |>
+  ggplot(aes(y = combination, x = count)) +
+  geom_col(width = 0.6, aes(fill = col)) +
+  geom_text(aes(label = label),
+            vjust = 0.5, hjust = -0.15, size= 2.5,
+            color="black",
+            # position=position_dodge(0.5),
+            family =  "Gill Sans MT") +
+  # scale_x_discrete(position = "top", drop = FALSE) + 
+  scale_y_discrete(limits = combination_lev, labels = NULL) +
+  scale_x_continuous(position = "top", limits = c(0, 750), breaks = c(0,300,600), labels = NULL) +
+  my_custom_theme() +
+  scale_fill_manual(values = c("gray90", "black")) +
+  theme(
+    legend.position = "none",
+    axis.ticks = element_blank(),
+    panel.border = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    axis.text.x.top = element_text(angle = 0, vjust = -0.5, hjust = 1)
+  ) +
+  coord_cartesian(expand = FALSE) +
+  labs(x = element_blank(), y = element_blank())
+
+# 2. Intersection point chart (shows which assemblers in each combination)
 # 
 
-paste_ <- function(x) { 
-  x <- x[!is.na(x)] 
-  x <- unique(sort(x))
-  x <- paste(x, sep = ';', collapse = ';')
-}
-
-# Manually edit upset 
-
-fltr_data %>%
-  group_by(hits, summarise) %>% # omit summarise
-  dplyr::distinct(Assembler) %>% 
-  summarise(across(Assembler, .fns = paste_), n = n()) %>% arrange(desc(n)) %>% 
-  ggplot(aes(x=Assembler)) +
-  axis_combmatrix(sep = ";")
-  # 
-fltr_data %>%
-  group_by(hits, summarise) %>% # omit summarise
-  dplyr::distinct(Assembler) %>% 
-  summarise(across(Assembler, .fns = paste_), n = n()) %>% arrange(desc(n)) %>% 
-  ggplot(aes(x=Assembler)) +
-  geom_bar() +
-  # axis_combmatrix(sep = ";")
-  axis_combmatrix(sep = ";", override_plotting_function = function(df){
-    ggplot(df, aes(x= at, y= single_label)) +
-      geom_rect(aes(fill= index %% 2 == 0), ymin=df$index-0.5,
-                ymax=df$index+0.5, xmin=0, xmax=1) +
-      geom_point(aes(color= observed), size = 3) +
-      # geom_line(data= function(dat) dat[dat$observed, ,drop=FALSE],
-      #           aes(group = labels), size= 1.2) +
-      ylab("") + xlab("") +
-      scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
-      scale_fill_manual(values= c(`TRUE` = "white", `FALSE` = "#F7F7F7")) +
-      scale_color_manual(values= c(`TRUE` = "black", `FALSE` = "#E0E0E0")) +
-      # my_custom_theme()
-      guides(color="none", fill="none") +
-      theme(
-        panel.background = element_blank(),
-        axis.text.x = element_blank(),
-        axis.ticks.y = element_blank(),
-        axis.ticks.length = unit(0, "pt"),
-        axis.title.y = element_blank(),
-        axis.title.x = element_blank(),
-        axis.line = element_blank(),
-        panel.border = element_blank()
-      )
-  })
-
-# ggplot(UPSETDF, aes(x=Assembler)) +
-#   geom_bar() +
+point_chart <- points_data |>
+  mutate(col = ifelse( grepl(",", combination), "Intersect", "Unique")) |>
+  mutate(facets = "Intersections") |>
+  ggplot(aes(y = combination, x = assemblers)) +
+  geom_line(aes(group = combination, colour = col), size = 1) +
+  geom_point(aes(colour = col), size = 3.5) +
+  # facet_grid(facets ~ ., switch = "y") +
+  my_custom_theme() +
+  ggstats::geom_stripped_cols() +
+  scale_x_discrete(position = "top", drop = FALSE) + 
+  scale_y_discrete(limits = combination_lev) +
+  scale_color_manual(values = c("gray90", "black")) +
+  theme(
+    legend.position = "none",
+    panel.border = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank(),
+    axis.text.x.top = element_text(angle = -45, vjust = -0.5, hjust = 1)
+  ) +
+  labs(x = element_blank(), y = element_blank()) 
 
 
 
-UPSETDF <- fltr_data %>%
-  group_by(summarise) %>% # omit summarise
-  # dplyr::distinct(Assembler) %>% 
-  reframe(across(Assembler, .fns = paste_), n = n(), mean_se(reference_coverage )) %>% arrange(desc(n))
 
-# Sort by assembler groups of intersection
+# 3. Side bar chart (total hits per assembler)
+
+assembler_bars <- assembler_counts |>
+  ggplot(aes(y = hits_count, x = Assembler)) +
+  geom_col(width = 0.6, fill = 'gray90') +
+  # geom_segment(aes(x = Assembler, y = 0, yend = -hits_count), size = 12) +
+  geom_text(aes(label = Assembler), size = 1.5, hjust = 1.5, vjust = 0.5, angle = -90, color = "white") +
+  scale_y_reverse() +
+  # ggstats::geom_stripped_cols() +
+  my_custom_theme() +
+  theme(
+    axis.ticks = element_blank(),
+    panel.border = element_blank(),
+    axis.text.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.y = element_blank(),
+  ) +
+  coord_cartesian(expand = FALSE) +
+  labs(x = element_blank(), y = "# Conotoxins")
+
+# 4.
 # 
 
-Assembler_levs <- UPSETDF %>%
-  ungroup() %>%
-  dplyr::count(Assembler, sort = T)
-
-UPSETDF %>%
-  mutate(Assembler = factor(Assembler, levels = Assembler_levs$Assembler)) %>%
-  ggplot() +
-  geom_errorbar(aes(y = Assembler, x = y, xmin = ymin , xmax = ymax), width = 0.15, alpha = 0.3) 
-
-# Describe gene families founb by assembler
+# Create combinations of assemblers 
 # 
-# 
+mean_combinations <- dat |>
+  group_by(hits) |>
+  summarise(
+    combination = paste(sort(unique(Assembler)), collapse = ","),
+    n_assemblers = n_distinct(Assembler),
+    reference_coverage = mean(reference_coverage),
+    .groups = "drop"
+  ) |>
+  group_by(combination) |> rstatix::get_summary_stats(type = "mean_sd") 
 
-fltr_data <- transratedf %>% 
-  # filter(Assembler %in% assemblers) %>%
-  filter(!is.na(hits)) %>%
-  filter(reference_coverage > 0.5) %>%
-  mutate(summarise = "< 80 % alignment") %>%
-  mutate(summarise = ifelse(reference_coverage >= 0.8, ">= 80% alignment", summarise)) %>%
-  mutate(summarise = ifelse(reference_coverage >= 0.9, ">= 90% alignment", summarise)) %>%
-  mutate(summarise = ifelse(reference_coverage >= 0.95, ">= 95% alignment", summarise)) %>%
-  mutate(summarise = ifelse(reference_coverage == 1, "100% alignment", summarise)) %>%
-  dplyr::distinct(Assembler, summarise, reference_coverage, hits)
+mean_chart <- mean_combinations |>
+  # mutate(assemblers = str_split(combination, ",")) |> unnest(assemblers) |>
+  mutate(min = mean-sd, max = mean+sd) |>
+  ggplot(aes(y = combination, x = mean)) +
+  geom_point(size = 1.5, alpha = 0.5) +
+  geom_errorbar(aes(xmin = min, xmax = max), width = 0.2) +
+  ggstats::geom_stripped_rows() +
+  my_custom_theme() +
+  scale_y_discrete(limits = combination_lev, labels = NULL) +
+  scale_x_continuous(position = "top", limits = c(0,1.15), breaks = c(0,0.5,1)) +
+  theme(
+    axis.ticks = element_blank(),
+    panel.border = element_blank(),
+    axis.text.y = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.y = element_blank(),
+  ) +
+  coord_cartesian(expand = FALSE) +
+  labs(x = element_blank(), y = element_blank())
+         
+         
+         
+
+# Match plots to areas by name
+design <- "#AC
+           #B#"
 
 
-sf_levs <- conoServerDB %>% 
-  # drop_na(genesuperfamily)  %>%
-  count(split_as, sort = T) 
+PSAVE <- wrap_plots(C = bar_chart, 
+                    B = assembler_bars, 
+                    A = point_chart, design = design) +
+  plot_layout(heights  = c(0.65,0.15,1))
 
-fltr_data %>%
-  filter(reference_coverage >  0.95) %>%
-  # count number of isoforms per gene
-  count( summarise, Assembler, hits, sort = T) %>%
-  left_join(distinct(conoServerDB, hits, split_as) ) %>%
-  # Count number of gene sf per isoform group
-  drop_na(split_as)  %>%
-  group_by(split_as, summarise, Assembler) %>% tally(n, sort = T) %>%
-  mutate(split_as = factor(split_as, levels = sf_levs$split_as)) %>%
-  # ggplot(aes(y = Assembler, x = n)) + geom_line()
-  ggplot(aes(y = split_as, x = Assembler, fill = n, label = n)) +
-  facet_grid(~ summarise) +
-  geom_tile() +
-  geom_text() +
-  theme(axis.text.x = element_text(angle = 90, size = 7, hjust = 1))
+PSAVE 
+
+ggsave(PSAVE, filename = 'UPSET_FOR_PUB.png', path = outdir, width = 5, height = 7, device = png, dpi = 800)
+
+# Match plots to areas by name
+design <- "#ACD
+           #B##"
+
+
+PSAVE <- wrap_plots(D = mean_chart, 
+                    C = bar_chart, 
+                    B = assembler_bars, 
+                    A = point_chart, design = design) +
+  plot_layout(heights  = c(0.65,0.15,1,0.75))
+
+ggsave(PSAVE, filename = 'UPSET_FOR_PUB_.png', path = outdir, width = 7, height = 7, device = png, dpi = 800)
 
