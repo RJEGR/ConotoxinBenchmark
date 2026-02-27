@@ -5,6 +5,7 @@
 
 # scp -r rgomez@omica.cicese.mx:/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/2_subsampling_dir/2_transrate_contigs_dir .
 
+
 rm(list = ls())
 
 if(!is.null(dev.list())) dev.off()
@@ -13,19 +14,22 @@ options(stringsAsFactors = FALSE, readr.show_col_types = FALSE)
 
 library(tidyverse)
 
-my_custom_theme <- function(...) {
+extrafont::loadfonts(device = "win")
+
+
+my_custom_theme <- function(base_size = 14, legend_pos = "top", ...) {
   base_size = 14
-  theme_bw(base_family = "GillSans", base_size = base_size) +
-    theme(legend.position = "top",
-      strip.placement = "outside",
-      strip.background = element_rect(fill = 'white', color = 'white'),
-      strip.text = element_text(angle = 0, size = base_size), 
-      axis.text = element_text(size = rel(0.7), color = "black"),
-      panel.grid.minor.y = element_blank(),
-      panel.grid.major.y = element_blank(),
-      panel.grid.minor.x = element_blank(),
-      panel.grid.major.x = element_blank(),
-      ...
+  theme_bw(base_family = "Gill Sans MT", base_size = base_size) +
+    theme(legend.position = legend_pos,
+          strip.placement = "outside", 
+          strip.background = element_rect(fill = 'gray90', color = 'white'),
+          strip.text = element_text(angle = 0, size = base_size, hjust = 0), 
+          axis.text = element_text(size = rel(0.7), color = "black"),
+          panel.grid.minor.y = element_blank(),
+          panel.grid.major.y = element_blank(),
+          panel.grid.minor.x = element_blank(),
+          panel.grid.major.x = element_blank(),
+          ...
     )
 }
 
@@ -71,7 +75,10 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
       
       # Temporal directory where vfolds_resampling_dir are found
       
-      outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/vfolds_resampling_dir/"
+      # outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/vfolds_resampling_dir/"
+      # 
+      outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/vfolds_resampling_dir/"
+      
       
       f <- list.files(path = outdir, pattern = ".fasta", full.names = T)
       
@@ -115,6 +122,8 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
   
   TP <- df %>%
     filter(reference_coverage >= reference_coverage_val) %>%
+    # Important: make distinct hits, to count only unique references (Recall), not over-inflate by N contigs!!!
+    distinct(hits) %>% 
     # dplyr::count(vfold_set, sampling_set)  %>% 
     dplyr::count() %>%
     dplyr::rename("TP" = "n")
@@ -158,13 +167,20 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
 }
 # Reading conoServer info
 
-outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
+
+outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS"
+
+
+# outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
 
 f <- list.files(path = outdir, pattern = "curated_nuc_conoServerDB.rds", full.names = T)
 
 conoServerDB <- read_rds(f) %>% dplyr::rename("hits" = "entry_id")
 
-dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir/Trinity_dir/transrate_contigs_dir/"
+# dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir/Trinity_dir/transrate_contigs_dir/"
+
+dir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/2_subsampling_dir/Trinity_dir/transrate_contigs_dir/"
+
 
 read_files <- function(dir, Assembly = ...) {
   
@@ -185,7 +201,9 @@ read_files <- function(dir, Assembly = ...) {
 transratedf <- read_files(dir, Assembly = "Trinity")
 
 
-dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir/Spades_dir/transrate_contigs_dir/"
+# dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir/Spades_dir/transrate_contigs_dir/"
+dir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/2_subsampling_dir/Spades_dir/transrate_contigs_dir/"
+
 
 
 transratedf2 <- read_files(dir, Assembly = "Spades")
@@ -214,6 +232,9 @@ metricsdf <- transratedf %>%
 metricsdf %>%
   write_tsv(file.path(outdir, "Sumbsampling_accuracy.tsv"))
 
+
+metricsdf <- read_tsv(file.path(outdir, "Sumbsampling_accuracy.tsv"))
+
 # (Quantitative): Proxy 1
 
 DataViz <- transratedf %>% 
@@ -241,19 +262,22 @@ scale_fill <- structure(scale_fill, names = sort(unique(DataViz$summarise)))
 
 p2 <- DataViz %>%
   # filter(summarise != "< 80 % alignment") %>%
+  mutate(Assembly = ifelse(Assembly %in% "Spades","A) Spades", "B) Trinity")) %>%
   ggplot(aes(y = n, x = as.factor(sampling_set), color = summarise, fill = summarise)) +
   # geom_jitter(position = position_jitter(0.1), shape = 1) +
-  stat_summary(fun.data=mean_sdl, geom="pointrange", shape = 1) + # position = position_jitter(0.25)
+  stat_summary(fun = "mean", geom = "line", aes(group = summarise)) +
+  # stat_summary(fun = "mean", geom = "point", aes(group = summarise)) + 
+  stat_summary(fun.data=mean_se, geom="pointrange", shape = 1, size = 0.3) + # position = position_jitter(0.25)
   labs(y = "Number of assembled conotoxins", x = "Sample size (Proportion of the sample)", caption = "3_Subsampling.R") +
   my_custom_theme(legend.text = element_text(size = 5)) +
   scale_color_manual("",values = scale_col ) +
   scale_fill_manual("",values = scale_fill)
   
-p2 + facet_grid(~ Assembly)
+p2 <- p2 + facet_grid(~ Assembly)
 
-# ggsave(p2,
-#     filename = 'Subsampling_boxplot.png', 
-#     path = outdir, width = 5.5, height = 5, dpi = 1000, device = png)
+ggsave(p2,
+    filename = 'Subsampling_boxplot_spades_trinity.png',
+    path = outdir, width = 5.2, height = 4, dpi = 1000, device = png)
 
   
 # (Quantitative): Proxy 2. What is the distribution in genesuperfamily ? Why some sf are easy to assembly?
@@ -287,9 +311,9 @@ transratedf %>%
 
 # Facet benchmark
 
-cols_to <- c("Accuracy", "Precision", "Sensitivity")
+cols_to <- c("Precision", "Sensitivity", "Accuracy")
 
-recode_to <- structure(c("A) Accuracy", "B) Precision", "C) Sensitivity"), names = cols_to)
+recode_to <- structure(c("A) Precision", "B) Sensitivity", "C) Accuracy"), names = cols_to)
 
 base_size <- 14
 
@@ -298,22 +322,123 @@ p1 <- metricsdf %>%
   pivot_longer(cols = cols_to, values_to = "y", names_to = "facet") %>%
   dplyr::mutate(facet = dplyr::recode_factor(facet, !!!recode_to)) %>%
   drop_na() %>%
+  mutate(Assembly = ifelse(Assembly %in% "Spades","A) Spades", "B) Trinity")) %>%
   ggplot(aes(y = y, x = as.factor(sampling_set))) +
   facet_grid(facet ~Assembly, scales ="free", switch = "y") +
-  geom_jitter(position = position_jitter(0.1), shape = 1) +
-  stat_summary(fun = "mean", geom = "line", aes(group = 1), color="blue") +
-  stat_summary(fun = "mean", geom = "point", aes(group = 1), color="blue") + # , color="blue"
-  # stat_summary(fun.data=mean_sdl, geom="pointrange", color="red") +
+  # geom_jitter(position = position_jitter(0.1), shape = 1) +
+  stat_summary(fun = "mean", geom = "line", aes(group = 1), color="grey20") +
+  # stat_summary(fun = "mean", geom = "point", aes(group = 1), color="gray70") + # , color="blue"
+  stat_summary(fun.data=mean_se, geom="pointrange", color="grey20", shape = 1) +
+  # ylim(0,1) +
   labs(x = "Sample size (Proportion of the sample)", y = "", caption = "Subsampling.R") +
   # ylim(0,NA) +
   my_custom_theme()
 
-# p1 
+p1
+
+# 
+# metricsdf %>% 
+#   select(-TP, -FP, -FN, -rawcontigs) %>%
+#   pivot_longer(cols = cols_to, values_to = "y", names_to = "facet") %>%
+#   mutate(Assembler = Assembly) %>%
+#   group_by(Assembler, sampling_set, facet) %>% 
+#   summarise(sd = sd(y), x = mean(y)) %>%
+#   arrange(desc(x)) %>%
+#   mutate(label = paste0(Assembler, " (",  round(x, 3), ")")) %>%
+#   mutate(Assembler = factor(Assembler, levels = rev(unique(Assembler)))) %>%
+#   # mutate(facet = "B) Accuracy") %>%
+#   mutate(xmin = x-sd, xmax = x+sd, xlab = xmax+0.1) %>%
+#   mutate(xlab = ifelse(Assembler == "STRINGTIE", 0.25, xlab)) %>% 
+#   mutate(sampling_set = as.factor(sampling_set)) %>%
+#   ggplot(aes(y = sampling_set , x = x, fill= Assembler, color = Assembler)) + 
+#   facet_grid(~ facet, scales = "free") +
+#   geom_col(position = position_dodge2()) 
+#   # geom_text(aes(y = sampling_set      , x = xlab, label = label), hjust = 0.1, size = 3) +
+#   geom_errorbar(aes(xmin = xmin, xmax = xmax), width = 0.15, alpha = 0.3, position = position_dodge2()) 
+#   # scale_x_continuous("",limits = c(0,1)) +
+#   # scale_y_discrete(position = "right")+
+#   scale_color_manual("", values = scale_col) +
+#   scale_fill_manual("", values = scale_col) +
+#   my_custom_theme(legend_pos = "none", axis.ticks.y = element_blank(), 
+#                   axis.text.y = element_blank(), axis.title.y = element_blank())  
+
 
 ggsave(p1, filename = 'Subsampling.png', 
-  path = outdir, width = 6, height = 6, dpi = 1000, device = png)
+       path = outdir, width = 5.5, height = 5, dpi = 1000, device = png)
 
 
+
+# metricsdf %>%
+#   drop_na() %>%
+#   mutate(Assembly = ifelse(Assembly %in% "Spades","A) Spades", "B) Trinity")) %>%
+#   ggplot(aes(y = Precision, x = Sensitivity , color = as.factor(sampling_set))) +
+#   facet_grid( ~Assembly, scales ="free", switch = "y") +
+#   # geom_jitter(position = position_jitter(0.1), shape = 1) +
+#   stat_summary(fun = "mean", geom = "point")  # , color="blue"
+#   # stat_summary(fun.data=mean_sdl, geom="pointrange", color="red") +
+#   labs(x = "Sample size (Proportion of the sample)", y = "", caption = "Subsampling.R") +
+#   # ylim(0,NA) +
+#   my_custom_theme()
+
+
+# Calculate stats
+# 
+# Priori
+# 
+
+data <- metricsdf %>%
+  select(-TP, -FP, -FN, -rawcontigs, -Ratio) %>%
+  pivot_longer(cols = cols_to, values_to = "y", names_to = "facet") %>%
+  # dplyr::mutate(facet = dplyr::recode_factor(facet, !!!recode_to)) %>%
+  drop_na()
+
+library(rstatix)
+
+data <- data %>%
+  group_by(Assembly , facet, sampling_set) %>%
+  rstatix::get_summary_stats() %>% 
+  mutate (y = mean )
+
+data %>%
+  group_by(Assembly , facet, sampling_set) %>% rstatix::shapiro_test(y) %>%
+  mutate(gauss = ifelse(p > 0.05, TRUE, FALSE)) %>%
+  count(gauss)
+
+data %>%
+  group_by(Assembly , facet) %>% levene_test(y ~ as.factor(sampling_set)) %>%
+  mutate(hom_var = ifelse(p > 0.05, TRUE, FALSE))
+
+
+# ANOVA assumes that the variance of the residuals is equal for all groups.
+# By groups Precision and assembly, Evaluate if significatn differences in performance due to samples depth
+#  
+data %>%
+  group_by(facet, Assembly) %>%
+  # rstatix::anova_test(y ~ as.factor(sampling_set)) %>%
+  kruskal_test(y ~ as.factor(sampling_set)) %>%
+  adjust_pvalue(method = "none") %>%
+  add_significance("p") -> res_aov
+
+View(res_aov)
+
+# Posteriori
+# 
+#   # rstatix::pairwise_t_test(Count ~ pH, paired = F) 
+data %>%
+  group_by(facet, Assembly ) %>%
+  # tukey_hsd(y ~ as.factor(sampling_set)) %>% # If ANOVA used as priori
+  rstatix::wilcox_test(y ~ sampling_set)
+  adjust_pvalue() %>%
+  add_significance()-> stat_test
+
+
+View(stat_test)
+
+stat_test %>%
+  count(p.adj.signif)
+
+
+# 
 quit()
 
 

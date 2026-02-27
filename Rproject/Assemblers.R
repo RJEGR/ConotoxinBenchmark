@@ -12,9 +12,12 @@ options(stringsAsFactors = FALSE, readr.show_col_types = FALSE)
 
 library(tidyverse)
 
+
+extrafont::loadfonts(device = "win")
+
 my_custom_theme <- function(base_size = 14, legend_pos = "top", ...) {
   base_size = 14
-  theme_bw(base_family = "GillSans", base_size = base_size) +
+  theme_bw(base_family = "Gill Sans MT", base_size = base_size) +
     theme(legend.position = legend_pos,
       strip.placement = "outside", 
       strip.background = element_rect(fill = 'gray90', color = 'white'),
@@ -37,7 +40,7 @@ read_transrate_scores <- function(file_list) {
   cat(rel_path)
   cat("\n")
   
-  rel_path <- sapply(strsplit(dirname(rel_path), "/"), `[`, 1)
+  rel_path <- sapply(strsplit(dirname(rel_path), "/"), `[`, 9)
   vfold_set <- sapply(strsplit(rel_path, "_"), `[`, 1)
   Assembler <- sapply(strsplit(rel_path, "_"), `[`, 5)
   
@@ -62,7 +65,9 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
       
       # Temporal directory where vfolds_resampling_dir are found
       
-      outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/vfolds_resampling_dir/"
+      # outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/vfolds_resampling_dir/"
+      
+      outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/vfolds_resampling_dir/"
       
       f <- list.files(path = outdir, pattern = ".fasta", full.names = T)
       
@@ -82,11 +87,11 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
     }
     
     
-    InputNsequences <- count_Nsequences()
     
     # False Negatives (FN): Transcripts present in the simulated data but not assembled. 
     ## TP - (N reference sequences in InputNsequences) 
     
+    InputNsequences <- count_Nsequences()
     
     data.frame(InputNsequences) %>% 
       as_tibble(rownames = "vfold_set") %>% 
@@ -148,23 +153,31 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
 }
 
 
-outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
+# outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
+
+outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS"
+
 
 f <- list.files(path = outdir, pattern = "curated_nuc_conoServerDB.rds", full.names = T)
 
 conoServerDB <- read_rds(f) %>% dplyr::rename("hits" = "entry_id")
 
-dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/1_assembly/transrate_contigs_reference_dir/"
+# dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/1_assembly/transrate_contigs_reference_dir/"
+
+# dir <- "C://Users//cinai/OneDrive/DesDocumentos/GitHub/ConotoxinBenchmark/"
+dir <- "C://Users//cinai/OneDrive/Escritorio/transrate_contigs_reference_dir/"
+
 
 str(file_list <- list.files(path = dir, pattern = "contigs.csv", recursive = T, full.names = TRUE))
 
+file_list <- file_list[!grepl("MERGEPIPE", file_list)]
 
 transratedf <- lapply(file_list, read_transrate_scores)
 
 transratedf <- do.call(rbind,transratedf)
 
 transratedf %>%
-  group_by(Assembler) %>%
+  group_by(vfold_set,Assembler) %>%
   dplyr::count()  
 
 transratedf %>%
@@ -174,10 +187,9 @@ transratedf %>%
   # facet_grid(Assembler ~., scales = "free", space = "free") +
   # geom_histogram()
 
-# transratedf %>% 
-#   group_by(vfold_set, Assembler) %>%
-#   calculate_metrics(reference_coverage_val = 0.95) #%>%
-  # write_tsv(file = file.path(dir, "benchmark.tsv"))
+transratedf %>%
+  # group_by(vfold_set, Assembler) %>%
+  write_tsv(file = file.path(dir, "benchmark_assemblers.tsv"))
 
 metricsdf <- transratedf %>% 
   filter(length>=200) %>%
@@ -283,7 +295,7 @@ metricsdf %>%
       fill= Assembler, color = Assembler),
     label.buffer = unit(0.5, 'lines'),
     # label.margin = margin(0, 0, 0, 0, "mm"),
-    label.family = "GillSans",
+    label.family = "Gill Sans MT",
     label.colour = "inherit",
     label.fontsize = 5,
     con.colour = "inherit",
@@ -299,7 +311,7 @@ metricsdf %>%
 p <- p + 
   ggrepel::geom_text_repel(data = mark_circle, 
     aes(label = Assembler, color = Assembler), 
-    max.overlaps = 100, family = "GillSans", size = 2.5,
+    max.overlaps = 100, family = "Gill Sans MT", size = 2.5,
       
     # nudge_x = .15,
     box.padding = 0.5,
@@ -330,7 +342,7 @@ p2 <- metricsdf %>% group_by(Assembler) %>%
   facet_grid(~ facet) +
   geom_col(aes(y = Assembler, x = x, fill= Assembler, color = Assembler), width = 0.7) + 
   geom_text(aes(y = Assembler, x = xlab, label = label), hjust = 0.1, size = 3) +
-  geom_errorbar(aes(y = Assembler, x = x, xmin = xmin, xmax = xmax), width = 0.15, alpha = 0.3, color = "gray70") +
+  geom_errorbar(aes(y = Assembler, x = x, xmin = xmin, xmax = xmax), width = 0.15, alpha = 0.3, color = "gray20") +
   scale_x_continuous("",limits = c(0,1)) +
   scale_y_discrete(position = "right")+
   scale_color_manual("", values = scale_col) +
@@ -339,6 +351,16 @@ p2 <- metricsdf %>% group_by(Assembler) %>%
     axis.text.y = element_blank(), axis.title.y = element_blank())  
 
 p2
+
+
+ggsave(p2, filename = 'Assemblers_Accuracy.png', 
+       path = outdir, width = 2.5, height = 3.5, dpi = 1000, device = png)
+
+metricsdf %>% group_by(Assembler) %>% 
+  select(Precision) %>%
+  rstatix::get_summary_stats(type = "mean_se") %>%
+  arrange(desc(mean)) %>% view()
+
 
 metricsdf %>% group_by(Assembler) %>% 
   summarise(sd = sd(Ratio), x = mean(Ratio)) %>%
@@ -352,33 +374,141 @@ metricsdf %>% group_by(Assembler) %>%
   scale_fill_manual("", values = scale_col) +
   my_custom_theme(legend_pos = "none")
 
+
+# Evaluates quantiles of accuracy
+# 
+
+transratedf %>%
+  ggplot(aes(reference_coverage, fill = Assembler, color = Assembler)) +
+  stat_ecdf(size = 5) +
+  scale_color_manual("", values = scale_col) +
+  scale_fill_manual("", values = scale_col) +
+  my_custom_theme(legend_pos = "top")
+
+assembler_lev <- metricsdf %>% group_by(Assembler) %>% 
+  summarise(sd = sd(Accuracy), x = mean(Accuracy)) %>%
+  arrange(desc(x)) %>% pull(Assembler)
+
+p3 <- transratedf %>%
+  # left_join(conoServerDB,by = "hits")
+  mutate(Assembler = factor(Assembler, levels = assembler_lev)) %>%
+  ggplot(aes(y = Assembler , x = reference_coverage, fill = Assembler, color = Assembler, alpha = after_stat(x))) +
+  ggridges::geom_density_ridges_gradient(
+  jittered_points = T,
+  position = ggridges::position_points_jitter(width = 0.05, height = 0),
+  point_shape = '|', point_size = 0.25, point_alpha = 1, alpha = 1) +
+  scale_color_manual("", values = scale_col) +
+  scale_fill_manual("", values = scale_col) +
+  # scale_y_reverse() +
+  scale_x_continuous("Contig coverage",breaks = seq(0,1, by = 0.2)) +
+  my_custom_theme(legend_pos = "none")
+
+ggsave(p3, filename = 'Assemblers_contig_coverage.png', 
+       path = outdir, width = 3, height = 3.5, dpi = 1000, device = png)
+
+
+transratedf %>%
+  left_join(conoServerDB,by = "hits") %>%
+  mutate(Assembler = factor(Assembler, levels = assembler_lev)) %>%
+  ggplot(aes(y = split_as  , x = reference_coverage, alpha = after_stat(x))) +
+  ggridges::geom_density_ridges_gradient(
+    jittered_points = F,
+    position = ggridges::position_points_jitter(width = 0.05, height = 0),
+    point_shape = '|', point_size = 0.25, point_alpha = 1, alpha = 1) +
+  # scale_y_reverse() +
+  scale_x_continuous("Contig coverage",breaks = seq(0,1, by = 0.2)) +
+  my_custom_theme(legend_pos = "none")
+
+
+DataViz <- transratedf %>% 
+  drop_na() %>% 
+  distinct(vfold_set, hits, reference_coverage, Assembler) %>%
+  # left_join(conoServerDB,by = "hits") %>%
+  mutate(summarise = "< 80 % alignment") %>%
+  mutate(summarise = ifelse(reference_coverage >= 0.8, ">= 80% alignment", summarise)) %>%
+  mutate(summarise = ifelse(reference_coverage >= 0.9, ">= 90% alignment", summarise)) %>%
+  mutate(summarise = ifelse(reference_coverage >= 0.95, ">= 95% alignment", summarise)) %>%
+  mutate(summarise = ifelse(reference_coverage == 1, "100% alignment", summarise)) %>%
+  dplyr::count(Assembler, summarise)
+
+
+n_pallet <- length(unique(DataViz$summarise))
+
+scale_col <- ggsci::pal_uchicago(alpha = 0.8)(n_pallet) 
+
+scale_col <- structure(scale_col, names = sort(unique(DataViz$summarise)))
+
+scale_fill <- ggsci::pal_uchicago(alpha = 0.8)(n_pallet) 
+
+scale_fill <- structure(scale_fill, names = sort(unique(DataViz$summarise)))
+
+
+p4 <- DataViz  %>%
+  # arrange(Assembler, summarise)
+  group_by(Assembler) %>%
+  mutate(n = n/sum(n)) %>% 
+  # summarise(sum(n)) %>%
+  group_by(Assembler,summarise ) %>%
+  rstatix::get_summary_stats(type = "mean_se") %>%
+  mutate(Assembler = factor(Assembler, levels = rev(assembler_lev))) %>%
+  mutate(x = mean) %>%
+  mutate(facet = "C) Assembler coverage") %>%
+  ggplot() +
+  facet_grid(~ facet) +
+  geom_col(aes(y = Assembler, x = x, fill= summarise), width = 0.7) + 
+  xlab("Frac. of contigs") +
+  # scale_color_manual("",values = scale_col ) +
+  scale_fill_manual("",values = scale_fill) +
+  my_custom_theme(legend.text = element_text(size = 7), legend_pos = "right")
+  
+
+ggsave(p4, filename = 'Assemblers_coverage_bar.png', 
+       path = outdir, width = 5, height = 5, dpi = 1000, device = png)
+
+
+DataViz  %>%
+  # arrange(Assembler, summarise)
+  group_by(Assembler,vfold_set ) %>%
+  mutate(n = n/sum(n)) %>% 
+  # summarise(sum(n)) %>%
+  group_by(Assembler,summarise ) %>%
+  rstatix::get_summary_stats(type = "mean_se") %>%
+  mutate(Assembler = factor(Assembler, levels = assembler_lev)) %>%
+  mutate(x = mean) %>%
+  # mutate(facet = "B) Accuracy") %>%
+  mutate(xmin = x-se, xmax = x+se, xlab = xmax+0.1) %>%
+  ggplot() +
+  facet_grid(summarise ~.) +
+  geom_col(aes(y = Assembler, x = x, fill= summarise, color = summarise), width = 0.7) + 
+  # geom_text(aes(y = Assembler, x = xlab, label = label), hjust = 0.1, size = 3) +
+  geom_errorbar(aes(y = Assembler, x = x, xmin = xmin, xmax = xmax), width = 0.15, alpha = 0.3, color = "gray20") 
+
+##
+##
+
+DataViz  %>%
+  # summarise(sum(n)) %>%
+  group_by(Assembler,vfold_set ) %>%
+  mutate(n = n/sum(n)) %>% 
+  group_by(Assembler,summarise ) %>%
+  rstatix::get_summary_stats(type = "mean_se") %>%
+  mutate(Assembler = factor(Assembler, levels = assembler_lev)) %>%
+  ggplot() +
+  geom_tile(color = 'white', linewidth = 0.2, aes(y = Assembler, x= summarise, fill = mean)) +
+  scale_fill_viridis_c("", option = "inferno", direction = -1)
+
+
+transratedf %>% 
+  drop_na() %>% 
+  distinct(vfold_set, hits, reference_coverage, Assembler) %>%
+  # filter(Assembler == "TRINITY") %>%
+  group_by(Assembler) %>%
+  rstatix::get_summary_stats(type = "quantile")
+
 library(patchwork)
 # p + p2
 
 # Inner join of conotoxins, and assemblers,
-
-library(ggVennDiagram)
-
-upsetdf <- transratedf %>% 
-  filter(!is.na(hits)) %>%
-  filter(reference_coverage > 0.95) %>%
-  distinct(Assembler, hits) #%>%
-# group_by(hits) %>%
-# summarise(across(Assembler, .fns = list), n = n()) 
-
-gene2ven <- split(upsetdf$hits, upsetdf$Assembler)
-
-gene2ven <- lapply(gene2ven, unlist)
-
-keep <- names(gene2ven) %in% c("SPADES", "TRINITY", "PLASS", "STRINGTIE", "RNABLOOM")
-
-ggVennDiagram(gene2ven[keep],label_font = "GillSans", label_size = 5,
-  relative_height = 0.5,relative_width = 0.8, force_upset = F) +
-  scale_fill_gradient(low="grey90",high = "red")
-
-ggVennDiagram(gene2ven,label_font = "GillSans", label_size = 7,
-  relative_height = 1,relative_width = 2, force_upset = T) 
-# scale_fill_gradient(low="grey90",high = "red",)
 
 
 # file_out <- file.path(outdir, "transrate_assemblers.rds")
@@ -389,8 +519,9 @@ ggVennDiagram(gene2ven,label_font = "GillSans", label_size = 7,
 # According to Cahis et al., 2012
 # By assembler, assess/Classify hits, to fragmented, chimeric, allelic, paralogue, and other genomic, based on overlap -----
 
+dir <- "C://Users//cinai/OneDrive/Escritorio/blast_outputs//"
 
-dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/1_assembly/blast_outputs/"
+# dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/1_assembly/blast_outputs/"
 
 str(f <- list.files(path = dir, pattern = "1.blast", recursive = T, full.names = TRUE))
 
