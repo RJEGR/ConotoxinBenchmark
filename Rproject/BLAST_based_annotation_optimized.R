@@ -12,6 +12,7 @@
 
 rm(list = ls())
 
+gc()
 
 Sys.setenv(R_MAX_VSIZE = "100Gb")
 
@@ -363,14 +364,15 @@ pattern <- "1.blast" # this output is using contig assembled as query and refere
 
 str(file_list <- list.files(path = dir, pattern = pattern, recursive = T, full.names = TRUE))
 
-file_list <- file_list[!grepl("MERGEPIPE", file_list)] # Huge sizes because many contigs in PLASS
+# file_list <- file_list[!grepl("MERGEPIPE|PLASS", file_list)] # Huge sizes because many contigs in PLASS
 
-file_list <- file_list[!grepl("PLASS", file_list)] # Huge sizes because many contigs in PLASS
+file_list <- file_list[grepl("PLASS", file_list)] # Huge sizes because many contigs in PLASS
 
-outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/BLAST_based_annotation_dir/"
+outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/BLAST_based_annotation_dir/PLASS_dir"
+
+dir.create(outdir)
 
 splits <-  unique(sapply(strsplit(basename(file_list), "_"), `[`, 1))
-
 
 process_split_memory_efficient <- function(split_name) {
   cat("Processing", split_name, "...\n")
@@ -396,6 +398,7 @@ process_split_memory_efficient <- function(split_name) {
 }
 
 # Apply function without storing intermediate results
+
 for (i in splits) {
   process_split_memory_efficient(i)
 }
