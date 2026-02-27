@@ -20,18 +20,6 @@ outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS
 
 dir.create(outdir)
 
-dir <- "//wsl.localhost/Debian/home/ricardo/nucleotide_dir"
-
-pattern <- "pHMM.tab"
-
-pHHM_f <- list.files(dir, pattern = pattern, full.names = T) # _pHMM.tab and _Regex.tab
-
-pattern <- "Regex.tab"
-
-Regex_f <- list.files(dir, pattern = pattern, full.names = T) # _pHMM.tab and _Regex.tab
-
-Regex_f <- Regex_f[!grepl("MERGEPIPE|PLASS", Regex_f)] # Huge sizes because many contigs in PLASS
-pHHM_f <- pHHM_f[!grepl("MERGEPIPE|PLASS", pHHM_f)] # Huge sizes because many contigs in PLASS
 
 
 which_cols <- c("Superfamily (Signal)", "Superfamily (Pro-region)", "Superfamily (Mature)")
@@ -45,6 +33,8 @@ paste_col <- function(x) {
 f <- Regex_f[1]
 
 read_regex <- function(f, Hydrophobicity_val = 60, pwidth_val = 50) {
+  
+  cat("Reading ", basename(f), "\n")
   
   DF <- read_delim(f, delim = "|", col_names = T) %>% mutate(Method = basename(f))
   
@@ -109,6 +99,8 @@ read_regex <- function(f, Hydrophobicity_val = 60, pwidth_val = 50) {
 # f <- pHHM_f[1]
 
 read_pHMM <- function(f,  Hydrophobicity_val = 60, pwidth_val = 50, eval = 0.05) {
+  
+  cat("Reading ", basename(f), "\n")
   
   DF <- read_delim(f, delim = "|", col_names = T) %>% mutate(Method = basename(f))
   
@@ -179,18 +171,53 @@ read_pHMM <- function(f,  Hydrophobicity_val = 60, pwidth_val = 50, eval = 0.05)
 }
 
 
-# read_regex(Regex_f[10])
+# read_regex(Regex_f[1])
 # 
 # read_pHMM(pHHM_f[10])
 
-Regex_df <- do.call(rbind, lapply(Regex_f, read_regex))
+dir1 <- "//wsl.localhost/Debian/home/ricardo/ConoSorter_outdir/nucleotide_dir/"
 
-pHMM_df <- do.call(rbind, lapply(pHHM_f, read_pHMM))
+dir2 <- "//wsl.localhost/Debian/home/ricardo/ConoSorter_outdir/peptide_dir/"
 
 
+Read_conoSorter <- function(dir) {
 
-# outName <- gsub("_Regex.tab|_pHMM.tab", "", basename(Regex_f))
+  pattern <- "pHMM.tab"
+  
+  pHHM_f <- list.files(dir, pattern = pattern, full.names = T) # _pHMM.tab and _Regex.tab
+  
+  pattern <- "Regex.tab"
+  
+  Regex_f <- list.files(dir, pattern = pattern, full.names = T) # _pHMM.tab and _Regex.tab
+  
+  Regex_f <- Regex_f[!grepl("MERGEPIPE|PLASS", Regex_f)] # Huge sizes because many contigs in PLASS
+  
+  pHHM_f <- pHHM_f[!grepl("MERGEPIPE|PLASS", pHHM_f)] # Huge sizes because many contigs in PLASS
+  
+  cat("starting w REGEX\n")
+  
+  Regex_df <- do.call(rbind, lapply(Regex_f, read_regex))
+  
+  cat("Continue w pHMM\n")
+  
+  pHMM_df <- do.call(rbind, lapply(pHHM_f, read_pHMM))
+  
+  rbind(Regex_df, pHMM_df)
+  
+  
+  
+}
 
+
+DB1 <- Read_conoSorter(dir1)
+
+
+DB2 <- Read_conoSorter(dir2)
+
+DB1 %>% write_rds(file = outFile)
+
+# Save bkp of data, 
+# summarise number of classification by 
 outName <- "Assemblers_1" 
 
 # outName <- "Assemblers_2" # this is for PLASS replicates only 
@@ -202,9 +229,9 @@ rbind(Regex_df, pHMM_df) %>% write_rds(file = outFile)
 
 rbind(Regex_df, pHMM_df) %>% count(tab)
 
-rbind(Regex_df, pHMM_df) |> filter(protein_id %in% "BINPACKER.0.11") 
+# rbind(Regex_df, pHMM_df) |> filter(protein_id %in% "BINPACKER.0.11") 
 
-annotation_results |> filter(qseqid %in% "BINPACKER.0.11")
+# annotation_results |> filter(qseqid %in% "BINPACKER.0.11")
 
 DB2 <- rbind(Regex_df, pHMM_df) |> 
   mutate(vfold_set = sapply(strsplit(Method, "_"), `[`, 1)) %>%
