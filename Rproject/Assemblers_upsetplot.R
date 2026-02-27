@@ -50,20 +50,8 @@ assemblers <- c("STRINGTIE","SPADES", "TRINITY", "RNABLOOM", "IDB", "MEGAHIT", "
 dat <- transratedf %>% 
   filter(Assembler %in% assemblers) %>%
   dplyr::filter(!is.na(hits)) %>%
-  # dplyr::filter(reference_coverage > 0.9) %>%
+  # dplyr::filter(reference_coverage > 0.8) %>%
   dplyr::distinct(Assembler, reference_coverage, hits) 
-
-
-# dat <- transratedf %>% 
-  # filter(Assembler %in% assemblers) %>%
-  # filter(!is.na(hits)) %>%
-  # filter(reference_coverage > 0.95) %>%
-  # mutate(summarise = "< 80 % alignment") %>%
-  # mutate(summarise = ifelse(reference_coverage >= 0.8, ">= 80% alignment", summarise)) %>%
-  # mutate(summarise = ifelse(reference_coverage >= 0.9, ">= 90% alignment", summarise)) %>%
-  # mutate(summarise = ifelse(reference_coverage >= 0.95, ">= 95% alignment", summarise)) %>%
-  # mutate(summarise = ifelse(reference_coverage == 1, "100% alignment", summarise)) %>%
-  # dplyr::distinct(Assembler, hits)
 
 
 # Create combinations of assemblers for each hit
@@ -155,6 +143,7 @@ point_chart <- points_data |>
     axis.ticks = element_blank(),
     axis.text.x.top = element_text(angle = -45, vjust = -0.5, hjust = 1)
   ) +
+  # coord_cartesian(expand = FALSE) +
   labs(x = element_blank(), y = element_blank()) 
 
 
@@ -212,7 +201,7 @@ mean_chart <- mean_combinations |>
     panel.grid.major.x = element_blank(),
     panel.grid.minor.y = element_blank(),
   ) +
-  coord_cartesian(expand = FALSE) +
+  # coord_cartesian(expand = FALSE) +
   labs(x = element_blank(), y = element_blank())
          
          
@@ -228,7 +217,7 @@ PSAVE <- wrap_plots(C = bar_chart,
                     A = point_chart, design = design) +
   plot_layout(heights  = c(0.65,0.15,1))
 
-PSAVE 
+# PSAVE 
 
 ggsave(PSAVE, filename = 'UPSET_FOR_PUB.png', path = outdir, width = 5, height = 7, device = png, dpi = 800)
 
