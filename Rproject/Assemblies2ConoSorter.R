@@ -30,7 +30,7 @@ paste_col <- function(x) {
   x <- paste(x, sep = '_', collapse = '_')
 }
 
-f <- Regex_f[1]
+# f <- Regex_f[1]
 
 read_regex <- function(f, Hydrophobicity_val = 60, pwidth_val = 50) {
   
@@ -44,6 +44,7 @@ read_regex <- function(f, Hydrophobicity_val = 60, pwidth_val = 50) {
     dplyr::rename("Hydrophobicity"="% Hydrophobicity (Signal)", "ID" = "Read Name") %>%
     mutate(Hydrophobicity = gsub("%", "", Hydrophobicity), Hydrophobicity = as.double(Hydrophobicity)) %>%
     dplyr::rename("Protein_width"="# A.A", "Cys_number" = "# Cysteine(s)") %>%
+    mutate(Cys_number = as.numeric(as.character(Cys_number))) %>%
     dplyr::rename("Score_sf"="Score Superfamily", "Score_class" = "Score Class") %>%
     dplyr::rename("seq"="Protein Sequence") %>%
     mutate(Conflict = Score_sf)
@@ -110,6 +111,7 @@ read_pHMM <- function(f,  Hydrophobicity_val = 60, pwidth_val = 50, eval = 0.05)
     dplyr::rename("Hydrophobicity"="% Hydrophobicity (Signal)", "ID" = "Read Name") %>%
     mutate(Hydrophobicity = gsub("%", "", Hydrophobicity), Hydrophobicity = as.double(Hydrophobicity)) %>%
     dplyr::rename("Protein_width"="# A.A", "Cys_number" = "# Cysteine(s)") %>%
+    mutate(Cys_number = as.numeric(as.character(Cys_number))) %>%
     dplyr::rename("E_value"="E-value Superfamily") %>%
     mutate(Conflict = E_value)
   
@@ -211,76 +213,31 @@ Read_conoSorter <- function(dir) {
 
 DB1 <- Read_conoSorter(dir1)
 
+# DB1 |> ungroup() |> distinct(Method, protein_id, Superfamily, Region, tab)
+
+outName <- "Nucleotide_1" 
+
+outFile <- file.path(outdir, paste0(outName, "_ConoSorter.rds"))
+
+DB1 |> write_rds(outFile)
+
+rm(DB1);gc()
 
 DB2 <- Read_conoSorter(dir2)
 
-DB1 %>% write_rds(file = outFile)
+outName <- "protein_1" 
 
-# Save bkp of data, 
-# summarise number of classification by 
-outName <- "Assemblers_1" 
+outFile <- file.path(outdir, paste0(outName, "_ConoSorter.rds"))
 
+DB2 |> write_rds(outFile)
+
+rm(DB2);gc()
+
+
+# Script 2
+# 
 # outName <- "Assemblers_2" # this is for PLASS replicates only 
 
 outFile <- file.path(outdir, paste0(outName, "_ConoSorter_regex_pHMM.rds"))
-
-rbind(Regex_df, pHMM_df) %>% write_rds(file = outFile)
-
-
-rbind(Regex_df, pHMM_df) %>% count(tab)
-
-# rbind(Regex_df, pHMM_df) |> filter(protein_id %in% "BINPACKER.0.11") 
-
-# annotation_results |> filter(qseqid %in% "BINPACKER.0.11")
-
-DB2 <- rbind(Regex_df, pHMM_df) |> 
-  mutate(vfold_set = sapply(strsplit(Method, "_"), `[`, 1)) %>%
-  mutate(Method = sapply(strsplit(Method, "_"), `[`, 5)) %>%
-  # mutate(file_name = gsub(".[1|2].blast", "", file_name))
-  ungroup() |> distinct(protein_id, tab, Method, vfold_set) |> 
-  dplyr::rename("qseqid" = protein_id)
-
-
-
-extrafont::loadfonts(device = "win")
-
-my_custom_theme <- function(base_size = 14, legend_pos = "top", ...) {
-  base_size = 14
-  theme_bw(base_family = "Gill Sans MT", base_size = base_size) +
-    theme(legend.position = legend_pos,
-          strip.placement = "outside", 
-          strip.background = element_rect(fill = 'gray90', color = 'white'),
-          strip.text = element_text(angle = 0, size = base_size, hjust = 0), 
-          axis.text = element_text(size = rel(0.7), color = "black"),
-          panel.grid.minor.y = element_blank(),
-          panel.grid.major.y = element_blank(),
-          panel.grid.minor.x = element_blank(),
-          panel.grid.major.x = element_blank(),
-          ...
-    )
-}
-
-
-
-annotation_results |> 
-  filter(final_annotation != "error") %>%
-  # filter(final_annotation == "chimera") %>%
-  mutate(vfold_set = sapply(strsplit(file_name, "_"), `[`, 1)) %>%
-  mutate(Method = sapply(strsplit(file_name, "_"), `[`, 5)) %>%
-  mutate(Method = gsub(".[1|2].blast", "", Method))|>
-  distinct(qseqid, final_annotation, Method, vfold_set) |> 
-  left_join(DB2) |> 
-  group_by(final_annotation, Method, tab) %>%
-  count(sort = T) |> 
-  mutate(tab = ifelse(is.na(tab), "Not annotated", tab)) |>
-  group_by(final_annotation, tab) %>%
-  mutate(f = n/sum(n)) |>
-  # rstatix::get_summary_stats(type = "mean_sd")
-  ggplot(aes(y = Method, x = final_annotation, fill = f)) +
-  geom_tile() +
-  geom_text(aes(label = n), color = "white") +
-  facet_grid(~ tab) +
-  # geom_col() +
-  my_custom_theme()
 
 
