@@ -84,37 +84,86 @@ my_custom_theme <- function(base_size = 14, legend_pos = "top", ...) {
     )
 }
 
+# Creates all the combination of domains:
+# 
+
+creates_domains <- function() {
+  
+  library(stringr)
+  
+  base_domains <- c("Mature", "Pro-region", "Signal")
+  
+  # Generate all possible combinations of length 1, 2, and 3
+  all_combos <- c()
+  
+  for (k in 1:length(base_domains)) {
+    combos <- combn(base_domains, k, simplify = FALSE)
+    formatted <- sapply(combos, function(x) {
+      paste0("(", paste(x, collapse = ")_("), ")")
+    })
+    all_combos <- c(all_combos, formatted)
+  }
+  
+  domains <- all_combos
+  print(domains)
+}
+
+names_to <-  c(creates_domains()[creates_domains() %in% "(Mature)_(Pro-region)_(Signal)"],
+               creates_domains()[!creates_domains() %in% "(Mature)_(Pro-region)_(Signal)"])
+
+recode_to <-structure(
+  c("Primary precursor", rep("Incomplete precursor", 6)),
+  names = names_to
+  )
+
+
 DB <- DB |>
-  filter(final_annotation != "error") |> 
-  # mutate(tab = ifelse(is.na(tab), "Not assigned", "Assigned")) |>
-  group_by(Method, final_annotation, Mode) %>%
-  tally(n, sort = T) 
+  filter(final_annotation != "error") |>
+  drop_na(Region) |>
+  mutate(Region = ifelse(is.na(Region), "Not assigned", Region)) |>
+  dplyr::mutate(Region = dplyr::recode_factor(Region, !!!recode_to)) |> 
+  mutate(final_annotation
+         = ifelse(final_annotation %in% c("full", "multi"), "Full and Multi", final_annotation)) |>
+  group_by(Region, final_annotation, Mode, Method, vfold_set) %>%   tally(n, sort = T) |>
+  group_by(Region, final_annotation, Mode, Method) |> rstatix::get_summary_stats(type = "mean_se")
 
-DB |> write_csv(file = paste0(outdir, "/assemblies2ConoServerSummary.csv"))
+
+# DB <- DB |>
+#   filter(final_annotation != "error") |> 
+#   mutate(Region = ifelse(is.na(Region), "Not assigned", Region)) |>
+#   # mutate(tab = ifelse(is.na(tab), "Not assigned", "Assigned")) |>
+#   group_by(Method, final_annotation, Mode, Region) %>%
+#   # filter(vfold_set == "Fold01") |>
+#   tally(n, sort = T) 
+
+# DB |> write_csv(file = paste0(outdir, "/assemblies2ConoServerSummary.csv"))
+
 
 DB |>
-  # group_by() |> mutate(f = )
-  # if calculate mean sd
-  # group_by(final_annotation, tab) |> rstatix::get_summary_stats(type = "mean_sd")
-  ggplot(aes(y = Method, x = final_annotation, fill = n)) +
+  mutate(label = paste0(round(mean), " ± ", round(se, digits = 2), "")) |>
+  ggplot(aes(y = final_annotation, x = Mode, fill = mean)) +
   geom_tile() +
-  geom_text(aes(label = n), color = "white") +
-  facet_grid(~ Mode) +
-  # geom_col() +
+  geom_text(aes(label = label), color = "gray60", size = 5) +
+  ggforce::facet_col(Method ~ .) +
+  facet_grid(Method ~ Region) +
+  scale_fill_continuous(palette = c("#FEE0D2", "#FC9272", "#DE2D26")) +
   my_custom_theme()
 
 DB |>
-  filter(final_annotation %in% c("chimera")) |> 
-  # group_by() |> mutate(f = )
-  # if calculate mean sd
-  # group_by(final_annotation, tab) |> rstatix::get_summary_stats(type = "mean_sd")
-  ggplot(aes(y = Method, x = final_annotation, fill = n)) +
-  geom_tile() +
-  geom_text(aes(label = n), color = "white") +
-  facet_grid(~ Mode) +
+  # filter(Region == "Primary precursor") |>
+  mutate(xmin = mean-se, xmax = mean+se, xlab = xmax+0.1) %>%
+  ggplot(aes(y = Method, x = mean, fill = Mode)) +
+  # geom_col(, position = position_dodge()) +
+  geom_bar(stat="identity", color="black", position=position_dodge()) +
+  geom_errorbar(aes(xmin = xmin, xmax = xmax), 
+                position = position_dodge(width = 0.9), width = 0.15, alpha = 0.3, color = "gray20") +
+  # geom_text(aes(label = n), color = "white") +
+  facet_grid(Region ~ final_annotation, scales = "free_x") +
+  # ggforce::facet_col(Mode ~ final_annotation, scales = "free_x") +
+  ggsci::scale_fill_aaas()
   # geom_col() +
   my_custom_theme()
 
 
-ggsave(PSAVE, filename = 'UPSET_FOR_PUB.png', path = outdir, width = 5, height = 7, device = png, dpi = 800)
+ggsave(PSAVE, filename = 'plot.png', path = outdir, width = 5, height = 7, device = png, dpi = 800)
   
