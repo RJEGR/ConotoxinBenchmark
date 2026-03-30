@@ -41,7 +41,8 @@ annotation_results <- do.call(rbind, lapply(f, read_rds)) |>
 # 
 
 DB1 <- DB1 |> ungroup() |> 
-  distinct(Method, protein_id, Region, tab) |> 
+  # Whether or not distinct to count the true number of assignments
+  # distinct(Method, protein_id, Region, tab) |> 
   # Use right Join to count the number of full contigs
   right_join(annotation_results, by = c("protein_id", "Method")) |> 
   count(Method, Region, tab, final_annotation) |> mutate(Mode = "Nucleotide")
@@ -51,7 +52,7 @@ DB1 <- DB1 |> ungroup() |>
 
 DB2 <- DB2 |> ungroup() |> 
   mutate(protein_id = gsub(".p[0-9]+$", "", protein_id)) |>
-  distinct(Method, protein_id, Region, tab)  |> 
+  # distinct(Method, protein_id, Region, tab)  |> 
   # Use right Join to count the number of full contigs
   left_join(annotation_results, by = c("protein_id", "Method")) |> 
   count(Method, Region, tab, final_annotation) |> mutate(Mode = "Protein")
@@ -63,6 +64,8 @@ DB2 <- DB2 |> ungroup() |>
 DB <- rbind(DB1, DB2) |> 
   mutate(vfold_set = sapply(strsplit(Method, "_"), `[`, 1)) |> 
   mutate(Method = sapply(strsplit(Method, "_"), `[`, 5))
+
+.DB <- DB
 
 rm(DB1,DB2, annotation_results);gc()
 
@@ -120,13 +123,14 @@ recode_to <-structure(
 DB <- DB |>
   filter(final_annotation != "error") |>
   drop_na(Region) |>
-  mutate(Region = ifelse(is.na(Region), "Not assigned", Region)) |>
-  dplyr::mutate(Region = dplyr::recode_factor(Region, !!!recode_to)) |> 
+  # mutate(Region = ifelse(is.na(Region), "Not assigned", Region)) |>
+  dplyr::mutate(Region = dplyr::recode_factor(Region, !!!recode_to)) |>
   mutate(final_annotation
          = ifelse(final_annotation %in% c("full", "multi"), "Full and Multi", final_annotation)) |>
   group_by(Region, final_annotation, Mode, Method, vfold_set) %>%   tally(n, sort = T) |>
   group_by(Region, final_annotation, Mode, Method) |> rstatix::get_summary_stats(type = "mean_se")
 
+# 
 
 # DB <- DB |>
 #   filter(final_annotation != "error") |> 
@@ -141,13 +145,13 @@ DB <- DB |>
 
 DB |>
   mutate(label = paste0(round(mean), " ± ", round(se, digits = 2), "")) |>
-  ggplot(aes(y = final_annotation, x = Mode, fill = mean)) +
+  ggplot(aes(y = Method, x = Mode, fill = mean)) +
   geom_tile() +
   geom_text(aes(label = label), color = "gray60", size = 5) +
-  ggforce::facet_col(Method ~ .) +
-  facet_grid(Method ~ Region) +
+  # ggforce::facet_col(final_annotation ~ .) +
+  facet_grid(final_annotation ~ Region) +
   scale_fill_continuous(palette = c("#FEE0D2", "#FC9272", "#DE2D26")) +
-  my_custom_theme()
+  my_custom_theme() -> psave
 
 DB |>
   # filter(Region == "Primary precursor") |>
@@ -160,10 +164,72 @@ DB |>
   # geom_text(aes(label = n), color = "white") +
   facet_grid(Region ~ final_annotation, scales = "free_x") +
   # ggforce::facet_col(Mode ~ final_annotation, scales = "free_x") +
-  ggsci::scale_fill_aaas()
+  ggsci::scale_fill_aaas() +
   # geom_col() +
   my_custom_theme()
 
 
-ggsave(PSAVE, filename = 'plot.png', path = outdir, width = 5, height = 7, device = png, dpi = 800)
+outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/"
   
+ggsave(psave, filename = 'ConoSorter_assemblies.png', path = outdir, width = 7, height = 12, device = png, dpi = 800)
+  
+DB|> count(Method, Mode, Region, sort = T) 
+# Calculate LnRR
+lnrr <- function(x,y) {log(x) - log(y)}
+
+
+# Calculate SE of LnRR using Delta method
+# SE_LnRR = sqrt((SE_xT/xT)² + (SE_xC/xC)²)
+
+se_lnrr <- function(se_x, se_y, x, y) {sqrt((se_x / x)^2 + (se_y / y)^2)}
+
+# revisar bien esta formula:
+
+DB |>
+  group_by(Method, Region, final_annotation) |>
+  pivot_wider(names_from = Mode, values_from = c(mean, se), values_fill = 0) |>
+  reframe(
+    se_rnrr = se_lnrr(se_Protein, se_Nucleotide, mean_Protein, mean_Nucleotide),
+    lnrr = lnrr(mean_Protein, mean_Nucleotide)
+         ) |> 
+  drop_na() |>
+  mutate(label = paste0(round(lnrr, digits = 1), " ± ", round(se_rnrr, digits = 2), "")) |> 
+  ggplot(aes(y = Method, x = Region, fill = lnrr)) +
+  geom_tile() +
+  geom_text(aes(label = label), color = "black", size = 5) +
+  # ggforce::facet_col(Method ~ .) +
+  facet_grid( ~ final_annotation) +
+  scale_fill_continuous(palette = c("blue", "white", "#DE2D26"), na.value = "white") +
+  my_custom_theme()
+  
+# Is significant the differences betweeen Modes
+
+library(rstatix)
+
+DB |>
+  group_by(Region, Method) %>%
+  rstatix::shapiro_test(mean) %>%
+  mutate(gauss = ifelse(p > 0.05, TRUE, FALSE)) 
+ 
+# Priori 
+
+DB %>% 
+  # group_by(Region, Method) %>%
+  rstatix::kruskal_test(mean ~ Mode) %>%
+  adjust_pvalue(method = "none") %>%
+  add_significance("p") -> prior.stats
+
+# Posteriori
+# 
+
+.DB |>
+  group_by(Method) %>%
+  pairwise_wilcox_test(n ~ Mode,  conf.level = 0.95, ref.group = 'Protein') %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_significance() -> post.test
+
+DB |>
+  group_by(Method) %>%
+  rstatix::pairwise_t_test(mean ~ Mode, ref.group = 'Protein') %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_significance() -> post.test
