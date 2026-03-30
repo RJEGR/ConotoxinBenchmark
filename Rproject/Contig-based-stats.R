@@ -1,7 +1,8 @@
 # LOAD transrate of 67 assemblies
 # proccessess contig scores per transcript and hit_group, 
 # Bind transcript_id with blast-based annotation, and conoSorter values
-# SCOPE: Identity the patterns between blast-based annotation ~ ConoSorter + transrate_score 
+# SCOPE: 
+# Identity the patterns between blast-based annotation ~ ConoSorter + transrate_score 
 # 
 
 rm(list = ls())
@@ -63,9 +64,19 @@ DB1 <- transratedf |>
   dplyr::rename("protein_id" = contig_name, "Method" = rel_path) |>
   select(protein_id, Method, p_bases_covered, p_good, score)
 
+dir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/BLAST_based_annotation_dir/"
+
+f <- list.files(dir, full.names = T, pattern = ".rds")
+
+annotation_results <- do.call(rbind, lapply(f, read_rds)) |>
+  mutate(file_name = gsub("_into_Fold[0-9]+[0-9]+.[1|2].blast", "", file_name)) |> 
+  dplyr::rename("protein_id" = qseqid, "Method" = file_name)
+
+
 DB1 <- DB1 |> ungroup() |> 
   left_join(annotation_results, by = c("protein_id", "Method"))
 
 DB1 |> ggplot(aes(p_good)) + 
   geom_histogram() + 
   ggforce::facet_col(~ final_annotation) 
+
