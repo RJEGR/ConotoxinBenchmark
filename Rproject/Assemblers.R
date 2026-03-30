@@ -408,8 +408,25 @@ ggsave(p3, filename = 'Assemblers_contig_coverage.png',
 
 
 transratedf %>%
-  left_join(conoServerDB,by = "hits") %>%
-  mutate(Assembler = factor(Assembler, levels = assembler_lev)) %>%
+  drop_na(hits) |>
+  distinct(Assembler, hits, reference_coverage) |>
+  left_join(distinct(conoServerDB, hits, split_as),by = "hits") %>%
+  ggplot(aes(y = split_as  , x = reference_coverage)) +
+  geom_boxplot()
+
+# cor(transratedf$linguistic_complexity_6, transratedf$reference_coverage)
+
+transratedf %>%
+  mutate(col = ifelse(is.na(hits), "Not annotated", "Annotated")) |>
+  sample_frac(size = 0.15) |>
+  ggplot(aes(linguistic_complexity_6, reference_coverage, color = col)) +
+  geom_point()
+
+transratedf %>%
+  drop_na(hits) |>
+  distinct(Assembler, hits, reference_coverage) |>
+  left_join(distinct(conoServerDB, hits, split_as),by = "hits") %>%
+  # mutate(Assembler = factor(Assembler, levels = assembler_lev)) %>%
   ggplot(aes(y = split_as  , x = reference_coverage, alpha = after_stat(x))) +
   ggridges::geom_density_ridges_gradient(
     jittered_points = F,
