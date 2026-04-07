@@ -8,12 +8,13 @@ options(stringsAsFactors = FALSE, readr.show_col_types = FALSE)
 
 library(tidyverse)
 library(patchwork)
+library(fastqcr)
 
 extrafont::loadfonts(device = "win")
 
 my_custom_theme <- function(base_size = 14, legend_pos = "top", ...) {
   base_size = 14
-  theme_bw(base_family = "Gill Sans MT", base_size = base_size) +
+  theme_bw(base_family = "Gillsans", base_size = base_size) +
     theme(legend.position = legend_pos,
           strip.placement = "outside", 
           strip.background = element_rect(fill = 'gray90', color = 'white'),
@@ -28,7 +29,7 @@ my_custom_theme <- function(base_size = 14, legend_pos = "top", ...) {
 }
 
 
-dir <- "//wsl.localhost/Debian/home/ricardo/fastqc_dir"
+dir <- "/Users/rjegr/Documents/Windows/Debian/fastqc_dir/"
 
 
 fileqc <- list.files(dir, pattern = '*zip', full.names = TRUE)
@@ -43,23 +44,37 @@ plotdf.summary <- plotdf |> group_by(Base) |>
   mutate(color = "Simulated (Art)")
 
 
+dir <- "/Users/rjegr/Documents/Windows/Debian/fastqc_dir/2_post_limpieza/"
+
+fileqc <- list.files(dir, pattern = '*zip', full.names = TRUE)
+
+plotdf <- data.frame(qc_read_collection(fileqc, modules = "Per base sequence quality", verbose = TRUE)$per_base_sequence_quality)
+
+which_cols <- names(plotdf)[-c(1,2)]
+
+plotdf.summary <- plotdf |> group_by(Base) |> 
+  summarise_at(all_of(which_cols), mean) |>
+  mutate(color = "Real RNAseq") |>
+  rbind(plotdf.summary)
+
+
+
 p2 <- plotdf.summary |> 
-  mutate(facet = "A) Quality scores") |>
-  ggplot(aes(x = Base, y = Mean)) + 
-  # geom_tile(aes(fill = Count)) + 
-  # scale_fill_gradient(low = "#F5F5F5",high = "black") +
-  geom_line(aes(y = Mean, color = color)) +  #  
-  geom_line(aes(y = Lower.Quartile), color = "#de2d26", size = 0.7, linetype = "dashed") +
-  geom_line(aes(y = Median), color = "#de2d26", size = 0.7) + 
-  geom_line(aes(y = Upper.Quartile), color = "#de2d26", size = 0.7, linetype = "dashed") + 
-  ylab("Phred Score") + xlab("Cycle") + 
+  mutate(facet = "A) Empirical error and quality") |>
+  ggplot(aes(x = Base, y = Mean,  color = color)) + 
+  geom_line(aes(y = Mean)) +  #  
+  geom_line(aes(y = Lower.Quartile), size = 0.5, linetype = "dashed", alpha = 0.5) +
+  # geom_line(aes(y = Median), size = 0.7) +
+  geom_line(aes(y = Upper.Quartile), size = 0.5, linetype = "dashed", alpha = 0.5) + 
+  ylab("Phred score") + xlab("Cycle") + 
   theme_classic(base_size = 16) + 
-  scale_color_manual(values =  c("#2c7fb8")) +
+  scale_color_manual(values =  c("#2c7fb8", "#de2d26")) +
   # theme(panel.grid = element_blank()) + 
   guides(color = guide_legend(title = NULL)) +
-  ylim(c(0, NA)) +
+  ylim(c(0, NA)) + xlim(0,100) +
   facet_grid(~ facet) +
-  my_custom_theme()
+  my_custom_theme(legend.title = element_text(size = 7), 
+                  legend.text = element_text(size = 7))
 
 ###
 ###
@@ -67,6 +82,8 @@ p2 <- plotdf.summary |>
 ##
 
 dir <- "C:/Users/cinai/OneDrive/Escritorio/0_simulated_data_dir/depth_stats_dir/"
+
+dir <- "/Users/rjegr/Documents/Windows/"
 
 df <- read_rds(paste0(dir, "depths.rds"))
 
@@ -89,48 +106,52 @@ g_interval <- df |>
   distinct(dataset, coverage, pct_coverage) |>
   mutate(facet = "B) Total bases covered") |>
   ggplot(aes(x = coverage, y = pct_coverage)) +
-  # scale_color_viridis_d(
-  #   option = "mako", name = "Level:", direction = -1, 
-  #   begin = .15, end = .9
-  # ) +
-  # guides(
-  #   color = guide_legend(reverse = TRUE, title.position = "top")
-  # ) + 
   my_custom_theme() +
-  labs(y = "Covered bases (%)", x = "Number read pairs (millions)")
+  labs(y = "% Bases", x = "Number read pairs (millions)")
   
 
 
+data_text <- df %>% 
+  filter(pct_coverage >= 0.95) |>
+  group_by(dataset, coverage) |>
+  summarise(pct_coverage = min(pct_coverage), n = n()) |>
+  group_by(coverage) |>
+  summarise(sd = round(sd(n), digits = 0), n = round(mean(n), digits = 0), pct_coverage = min(pct_coverage)) |> 
+  mutate(label = paste0("(", n, "±",sd,")"))
+  
+
 p1 <- g_interval +
+  geom_text(data = data_text, aes(label = label), vjust = 10, hjust = 0.5, size= 1.5, family =  "GillSans") +
   # ggdist::stat_interval(
   #   .width = c(.25, .5, .95, 1),
   #   size = 7
   # ) +
-  # ggdist::stat_gradientinterval(
-    # width = .5, 
-    # point_size = 2.5,
-    # fill = "skyblue"
-  # ) +
-  ggdist::stat_halfeye(
+  ggdist::stat_gradientinterval(
+  # side = "left", position = "dodge", scale = 0.5,
+  fill_type = "gradient",
+  linewidth = 0.05, size = Inf,
+  # linetype = "dashed",
+  fill = "blue"
+  ) +
+  ggdist::stat_halfeye(scale = 0.5,
     adjust = .33, ## bandwidth
     width = .5, fill = "grey85",
     interval_colour = NA, point_colour = "black",
-    shape = 23, stroke = 1.5, point_size = 0.5, point_fill = "white",
+    shape = 1, stroke = 0.5, point_size = 0.5, point_fill = "white",
     position = position_nudge(x = .03),
-    aes(thickness = stat(f*n))
+    aes(thickness = after_stat(f*n))
   ) +
-  # scale_color_viridis_d(
-  #   option = "mako", name = "Level:", direction = -1, 
-  #   begin = .15, end = .9,
-  #   labels = function(x) paste0(as.numeric(x)*100, "%")) +
+  # geom_line(aes(y = pct_coverage, group = 2), linewidth = 1) +
   facet_grid(~ facet)
+
+p1
 
 # 
 # library(patchwork)
 
 PSAVE <- p2+p1
 
-outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS"
+outdir <- "/Users/rjegr/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
 
 ggsave(PSAVE, filename = 'fastqc_plot.png', path = outdir, width = 7, height = 3.5, device = png, dpi = 800)
 
