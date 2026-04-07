@@ -10,7 +10,7 @@ while getopts "s:o:p:h" opt; do
     case $opt in
         s) MANIFEST_FILE="$OPTARG";;
         o) OUTPUT_DIR="$OPTARG";;
-        #p) PROPORTION="$OPTARG";;
+        p) PROPORTION="$OPTARG";;
         h)
             echo "Usage: $(basename $0) -s <Manifest> [-o <OutputDir>]"
             echo
@@ -91,6 +91,107 @@ run_spades() {
 
     echo "Results of the assembly found at: $f1"
 
+
+    movecall="mv $f1 $final_fasta"
+
+    echo $movecall
+
+    eval $movecall
+
+}
+
+run_idba() {
+    export PATH=/LUSTRE/apps/bioinformatica/idba/bin:$PATH
+
+    export PATH=$PATH:$EXPORT
+
+    local forward_fq="$1"
+    local reverse_fq="$2"
+    local output="$3"
+    local final_fasta="$4"
+
+
+    forward_fa=${forward_fq%.fq}.idba.fa
+    reverse_fa=${reverse_fq%.fq}.idba.fa
+
+    awk 'NR%4==1 {print ">" substr($0, 2)} NR%4==2 {print}' $forward_fq > $(basename $forward_fa)
+    awk 'NR%4==1 {print ">" substr($0, 2)} NR%4==2 {print}' $reverse_fq > $(basename $reverse_fa)
+
+
+    call="idba_hybrid -r $(basename $forward_fa) $(basename $reverse_fa) --num_threads 24  -o $output"
+
+    echo $call
+    
+    eval $call
+
+    rm $(basename $forward_fa) $(basename $reverse_fa) 
+
+    f1=$(find "${output}" -maxdepth 1 -type f -name 'scaffold.fa') 
+
+    echo "Results of the assembly found at: $f1"
+
+
+    movecall="mv $f1 $final_fasta"
+
+    echo $movecall
+
+    eval $movecall
+
+}
+
+run_megahit() {
+    export PATH=/LUSTRE/apps/bioinformatica/megahit/bin/:$PATH
+
+    export PATH=$PATH:$EXPORT
+
+    local forward_fq="$1"
+    local reverse_fq="$2"
+    local output="$3"
+    local final_fasta="$4"
+    
+    rm -rf megahit_out # As megahit does not overwrite existing dirs, we remove it first
+
+    call="megahit -1 $forward_fq -2 $reverse_fq -o megahit_out -t 24 --presets meta-sensitive"
+
+
+    echo $call
+    
+    eval $call
+
+
+    f1=$(find megahit_out -maxdepth 1 -type f -name 'final.contigs.fa') 
+
+    echo "Results of the assembly found at: $f1"
+
+
+    movecall="mv $f1 $final_fasta"
+
+    echo $movecall
+
+    eval $movecall
+
+}
+
+run_rnabloom() {
+    
+    module load conda-2025
+    source activate base
+    conda activate rnabloom
+
+    local forward_fq="$1"
+    local reverse_fq="$2"
+    local output="$3"
+    local final_fasta="$4"
+    
+    call="rnabloom -l $forward_fq -r $reverse_fq -t 20  -outdir $output -mem 100"
+
+    echo $call
+    
+    eval $call
+
+    f1=$(find "${output}" -maxdepth 1 -type f -name 'rnabloom.transcripts.fa')
+
+    echo "Results of the assembly found at: $f1"
 
     movecall="mv $f1 $final_fasta"
 
@@ -200,11 +301,15 @@ subsampling_assembly() {
     seqkit sample --proportion $Prop --rand-seed 123 -o $forward_sampled_fq $forward_fq
     seqkit sample --proportion $Prop --rand-seed 123 -o $reverse_sampled_fq $reverse_fq
 
-    #call="run_trinity $forward_sampled_fq $reverse_sampled_fq $OUTDIR"
-
     #call="run_trinity $forward_sampled_fq $reverse_sampled_fq $OUTDIR $final_fasta"
 
-    call="run_spades $forward_sampled_fq $reverse_sampled_fq $OUTDIR $final_fasta"
+    #call="run_spades $forward_sampled_fq $reverse_sampled_fq $OUTDIR $final_fasta"
+
+    #call="run_idba $forward_sampled_fq $reverse_sampled_fq $OUTDIR $final_fasta"
+
+    #call="run_megahit $forward_sampled_fq $reverse_sampled_fq $OUTDIR $final_fasta"
+
+    call="run_rnabloom $forward_sampled_fq $reverse_sampled_fq $OUTDIR $final_fasta"
 
 
     echo "Running $call"
