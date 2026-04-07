@@ -18,6 +18,7 @@ rm -rf $OUTDIR # As megahit does not overwrite existing dirs, we remove it first
 call="megahit -1 $forward_fq -2 $reverse_fq -o $OUTDIR -t $CPU --presets meta-sensitive"
 
 echo "Executing: $call" 
+
 eval $call
 
 
