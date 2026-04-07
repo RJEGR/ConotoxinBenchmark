@@ -31,7 +31,8 @@ my_custom_theme <- function(base_size = 14, ...) {
     )
 }
 
-outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
+
+outdir <- "/Users/rjegr/Documents/Windows/Documents/ConotoxinBenchmark/INPUTS/"
 
 file_out <- file.path(outdir, "curated_nuc_conoServerDB.rds")
 
