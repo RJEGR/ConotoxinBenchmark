@@ -13,21 +13,27 @@ options(stringsAsFactors = FALSE, readr.show_col_types = FALSE)
 
 library(tidyverse)
 
-outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/ConoSorter_dir"
+# outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/ConoSorter_dir"
+
+dir <- "/Users/rjegr/Documents/Windows/Documents/ConotoxinBenchmark/INPUTS/ConoSorter_dir/"
+
+outdir <- "/Users/rjegr/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
 
 outName <- "Nucleotide_1" 
 
-f <- file.path(outdir, paste0(outName, "_ConoSorter.rds"))
+f <- file.path(dir, paste0(outName, "_ConoSorter.rds"))
 
 DB1 <- read_rds(f)
 
 outName <- "protein_1" 
 
-f <- file.path(outdir, paste0(outName, "_ConoSorter.rds"))
+f <- file.path(dir, paste0(outName, "_ConoSorter.rds"))
 
 DB2 <- read_rds(f) |> mutate(Method = gsub(".fa.transdecoder", "", Method)) 
 
-dir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/BLAST_based_annotation_dir/"
+# dir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/BLAST_based_annotation_dir/"
+
+dir <- "/Users/rjegr/Documents/Windows/Documents/ConotoxinBenchmark/INPUTS/BLAST_based_annotation_dir/"
 
 f <- list.files(dir, full.names = T, pattern = ".rds")
 
@@ -73,7 +79,7 @@ extrafont::loadfonts(device = "win")
 
 my_custom_theme <- function(base_size = 14, legend_pos = "top", ...) {
   base_size = 14
-  theme_bw(base_family = "Gill Sans MT", base_size = base_size) +
+  theme_bw(base_family = "Gillsans", base_size = base_size) +
     theme(legend.position = legend_pos,
           strip.placement = "outside", 
           strip.background = element_rect(fill = 'gray90', color = 'white'),
@@ -169,12 +175,12 @@ DB |>
   my_custom_theme()
 
 
-outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/"
   
 ggsave(psave, filename = 'ConoSorter_assemblies.png', path = outdir, width = 7, height = 12, device = png, dpi = 800)
   
 DB|> count(Method, Mode, Region, sort = T) 
 # Calculate LnRR
+
 lnrr <- function(x,y) {log(x) - log(y)}
 
 
@@ -193,7 +199,7 @@ DB |>
     lnrr = lnrr(mean_Protein, mean_Nucleotide)
          ) |> 
   drop_na() |>
-  mutate(label = paste0(round(lnrr, digits = 1), " ± ", round(se_rnrr, digits = 2), "")) |> 
+  mutate(label = paste0(round(lnrr, digits = 2), " ± ", round(se_rnrr, digits = 2), "")) |> 
   ggplot(aes(y = Method, x = Region, fill = lnrr)) +
   geom_tile() +
   geom_text(aes(label = label), color = "black", size = 5) +
