@@ -34,15 +34,3 @@ for i in $(seq 9 12); do
 done
 
 exit
-
-find "boostrap_dir_${i}/*_FASTA_DIR" -name "*.fa" | while read -r contig_file; do
-
-            call="Accuracy.sh -d $contig_file -s $manifest"
-            
-            echo $call
-            
-            eval $call
-
-        done
-
-exit
