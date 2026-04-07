@@ -2,9 +2,10 @@
 # After running Subsampling.sh analysis, OPEN contigs.csv files and calculate metrics of accuracy
 # EDA of 2_subsampling_dir/2_transrate_contigs_dir
 
-
+# subfolder=idba_dir # idba_dir rnabloom_dir megahit_dir spades_dir
+# mkdir -p ${subfolder}
 # scp -r rgomez@omica.cicese.mx:/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/2_subsampling_dir/2_transrate_contigs_dir .
-
+# scp -r rgomez@omica:/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/fernando_pub/2_subsampling_dir/${subfolder}/transrate_contigs_dir ${subfolder}
 
 rm(list = ls())
 
@@ -168,19 +169,20 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
 # Reading conoServer info
 
 
-outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS"
+# outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS"
 
-
-# outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
+outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
 
 f <- list.files(path = outdir, pattern = "curated_nuc_conoServerDB.rds", full.names = T)
 
 conoServerDB <- read_rds(f) %>% dplyr::rename("hits" = "entry_id")
 
-# dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir/Trinity_dir/transrate_contigs_dir/"
 
-dir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/2_subsampling_dir/Trinity_dir/transrate_contigs_dir/"
+dir <- "/Users/rjegr/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir"
 
+dirs <- list.files(dir)
+
+file.path(dir, dirs)
 
 read_files <- function(dir, Assembly = ...) {
   
@@ -198,7 +200,9 @@ read_files <- function(dir, Assembly = ...) {
     mutate(Assembly = Assembly)
 }
 
-transratedf <- read_files(dir, Assembly = "Trinity")
+transratedf <- lapply(file.path(dir, dirs), read_files(dir, Assembly = dirs))
+
+# transratedf <- read_files(dir, Assembly = "Trinity")
 
 
 # dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir/Spades_dir/transrate_contigs_dir/"
