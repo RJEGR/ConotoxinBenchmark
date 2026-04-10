@@ -356,7 +356,10 @@ plot_annotations <- function(annotation_df) {
 # USAGE EXAMPLE
 # ============================================================================
 
-dir <- "//wsl.localhost/Debian/home/ricardo/blast_outputs/"
+dir <- "~//wsl.localhost/Debian/home/ricardo/blast_outputs/"
+
+
+dir <- "~/Documents/Windows/Escritorio/blast_outputs/"
 
 pattern <- "1.blast" # this output is using contig assembled as query and reference as subject
 
@@ -368,9 +371,9 @@ str(file_list <- list.files(path = dir, pattern = pattern, recursive = T, full.n
 
 file_list <- file_list[grepl("PLASS", file_list)] # Huge sizes because many contigs in PLASS
 
-outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/BLAST_based_annotation_dir/PLASS_dir"
+outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/BLAST_based_annotation_dir/PLASS_dir"
 
-dir.create(outdir)
+dir.create(outdir, recursive = T)
 
 splits <-  unique(sapply(strsplit(basename(file_list), "_"), `[`, 1))
 
@@ -466,12 +469,7 @@ my_custom_theme <- function(base_size = 14, legend_pos = "top", ...) {
 
 
 
-DataViz %>%
-  ggplot(aes(y = file_name, x = n, fill = final_annotation)) +
-  geom_col() +
-  scale_fill_startrek() +
-  my_custom_theme() +
-  labs(x = "Fraction of Assemblies")
+
 
 
 # viz 2
