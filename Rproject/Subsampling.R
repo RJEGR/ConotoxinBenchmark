@@ -20,7 +20,7 @@ extrafont::loadfonts(device = "win")
 
 my_custom_theme <- function(base_size = 14, legend_pos = "top", ...) {
   base_size = 14
-  theme_bw(base_family = "Gill Sans MT", base_size = base_size) +
+  theme_bw(base_family = "GillSans", base_size = base_size) +
     theme(legend.position = legend_pos,
           strip.placement = "outside", 
           strip.background = element_rect(fill = 'gray90', color = 'white'),
@@ -178,13 +178,8 @@ f <- list.files(path = outdir, pattern = "curated_nuc_conoServerDB.rds", full.na
 conoServerDB <- read_rds(f) %>% dplyr::rename("hits" = "entry_id")
 
 
-dir <- "/Users/rjegr/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir"
 
-dirs <- list.files(dir)
-
-file.path(dir, dirs)
-
-read_files <- function(dir, Assembly = ...) {
+read_files <- function(dir, Assembly = NULL) {
   
   file_list <- list.files(path = dir, pattern = "contigs.csv", recursive = T, full.names = TRUE)
   
@@ -200,51 +195,50 @@ read_files <- function(dir, Assembly = ...) {
     mutate(Assembly = Assembly)
 }
 
-transratedf <- lapply(file.path(dir, dirs), read_files(dir, Assembly = dirs))
+dir <- "/Users/rjegr/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir"
 
-# transratedf <- read_files(dir, Assembly = "Trinity")
-
-
-# dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir/Spades_dir/transrate_contigs_dir/"
-dir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/2_subsampling_dir/Spades_dir/transrate_contigs_dir/"
+dirs <- list.files(dir)
 
 
+# Use Map() with the assembly names
+transratedf <- Map(function(assembly_path, assembly_name) {
+  read_files(assembly_path, Assembly = assembly_name)
+}, file.path(dir, dirs), dirs)
 
-transratedf2 <- read_files(dir, Assembly = "Spades")
 
-transratedf <- read_files(dir, Assembly = "Spades") %>% rbind(transratedf)
+transratedf <- do.call(rbind, transratedf)
+
 
 transratedf %>%
   dplyr::count(rel_path, vfold_set, sampling_set, Assembly) 
 
+
 # calculate_metrics(transratedf, reference_coverage_val = 0.95) %>%
 #   write_tsv(file = file.path(dir, "subsampling_benchmark.tsv"))
 
-metricsdf <- transratedf %>% 
-  filter(length>=200) %>%
-  group_by(vfold_set, sampling_set, Assembly) %>%
-  calculate_metrics(reference_coverage_val = 0.95) %>% 
-  mutate(
-    Ratio = TP/FP,
-    # Tell us what percentage of positive classes were correctly identified
-    Accuracy = TP / (TP + FN + FP),
-    Precision = TP /(TP + FP),
-    Sensitivity = TP /(TP + FN),
-    Fscore = 2 * (TP) / (2 * (TP) + FP + FN), 
-  ) 
+# metricsdf <- transratedf %>% 
+#   filter(length>=200) %>%
+#   group_by(vfold_set, sampling_set, Assembly) %>%
+#   calculate_metrics(reference_coverage_val = 0.95) %>% 
+#   mutate(
+#     Ratio = TP/FP,
+#     # Tell us what percentage of positive classes were correctly identified
+#     Accuracy = TP / (TP + FN + FP),
+#     Precision = TP /(TP + FP),
+#     Sensitivity = TP /(TP + FN),
+#     Fscore = 2 * (TP) / (2 * (TP) + FP + FN), 
+#   ) 
 
-metricsdf %>%
-  write_tsv(file.path(outdir, "Sumbsampling_accuracy.tsv"))
+# metricsdf %>% write_tsv(file.path(outdir, "Sumbsampling_accuracy.tsv"))
 
 
-metricsdf <- read_tsv(file.path(outdir, "Sumbsampling_accuracy.tsv"))
+# metricsdf <- read_tsv(file.path(outdir, "Sumbsampling_accuracy.tsv"))
 
 # (Quantitative): Proxy 1
 
 DataViz <- transratedf %>% 
   drop_na() %>% 
   distinct(sampling_set, vfold_set, hits, reference_coverage, Assembly) %>%
-  # left_join(conoServerDB,by = "hits") %>%
   mutate(summarise = "< 80 % alignment") %>%
   mutate(summarise = ifelse(reference_coverage >= 0.8, ">= 80% alignment", summarise)) %>%
   mutate(summarise = ifelse(reference_coverage >= 0.9, ">= 90% alignment", summarise)) %>%
@@ -264,24 +258,32 @@ scale_fill <- ggsci::pal_uchicago(alpha = 0.5)(n_pallet)
 scale_fill <- structure(scale_fill, names = sort(unique(DataViz$summarise)))
 
 
+
+cols_to <- c("spades_dir" ,  "trinity_dir", "idba_dir" ,"megahit_dir",  "rnabloom_dir")
+
+recode_to <- structure(c("A) Spades", "B) Trinity", "C) IDBA", "D) MEGAHIT", "E) RNA-bloom"), names = cols_to)
+
+
 p2 <- DataViz %>%
-  # filter(summarise != "< 80 % alignment") %>%
-  mutate(Assembly = ifelse(Assembly %in% "Spades","A) Spades", "B) Trinity")) %>%
+  dplyr::mutate(Assembly = dplyr::recode_factor(Assembly, !!!recode_to)) %>%
   ggplot(aes(y = n, x = as.factor(sampling_set), color = summarise, fill = summarise)) +
   # geom_jitter(position = position_jitter(0.1), shape = 1) +
+  # ggforce::facet_col(~ Assembly) +
+  facet_wrap(~ Assembly, nrow = 1, ncol = 5) +
   stat_summary(fun = "mean", geom = "line", aes(group = summarise)) +
   # stat_summary(fun = "mean", geom = "point", aes(group = summarise)) + 
-  stat_summary(fun.data=mean_se, geom="pointrange", shape = 1, size = 0.3) + # position = position_jitter(0.25)
+  stat_summary(fun.data=mean_se, geom="pointrange", shape = 1, size = 0.31) + # position = position_jitter(0.25)
   labs(y = "Number of assembled conotoxins", x = "Sample size (Proportion of the sample)", caption = "3_Subsampling.R") +
-  my_custom_theme(legend.text = element_text(size = 5)) +
+  my_custom_theme(legend.text = element_text(size = 12)) +
+  scale_x_discrete(breaks = seq(0,1, by = 0.2)) +
   scale_color_manual("",values = scale_col ) +
   scale_fill_manual("",values = scale_fill)
-  
-p2 <- p2 + facet_grid(~ Assembly)
+
+# p2
 
 ggsave(p2,
-    filename = 'Subsampling_boxplot_spades_trinity.png',
-    path = outdir, width = 5.2, height = 4, dpi = 1000, device = png)
+    filename = 'Subsampling_boxplot_assemblers.png',
+    path = outdir, width = 10, height = 3.7, dpi = 1000, device = png)
 
   
 # (Quantitative): Proxy 2. What is the distribution in genesuperfamily ? Why some sf are easy to assembly?
