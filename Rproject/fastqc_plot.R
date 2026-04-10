@@ -81,7 +81,7 @@ p2 <- plotdf.summary |>
 ###
 ##
 
-dir <- "C:/Users/cinai/OneDrive/Escritorio/0_simulated_data_dir/depth_stats_dir/"
+# dir <- "C:/Users/cinai/OneDrive/Escritorio/0_simulated_data_dir/depth_stats_dir/"
 
 dir <- "/Users/rjegr/Documents/Windows/"
 
@@ -91,6 +91,39 @@ df <- df %>%
   separate(file, into = c("dataset", "coverage"), sep = "_", remove = F) |>
   mutate(coverage = factor(coverage, levels = c("10", "20", "50","100","200","500", "700", "1000")))
 
+dir <- "/Users/rjegr/Documents/Windows/Documents/ConotoxinBenchmark/INPUTS/"
+
+conoserverDB <- read_rds(file.path(dir, "curated_nuc_conoServerDB.rds")) %>%
+  dplyr::rename("chrom" = "entry_id") |>
+  distinct(chrom, split_as, genesuperfamily)
+
+df <- df %>%
+  distinct(chrom) %>%
+  # match first the ids
+  left_join(conoserverDB, by = "chrom") |>
+  right_join(df)
+
+data_label <- df |> 
+  filter(coverage == 10) |>
+  group_by(genesuperfamily, coverage) |> rstatix::get_summary_stats(type = "mean_se") |>
+  dplyr::rename("pct_coverage" = "mean") 
+  
+
+df |>
+  ggplot(aes(x = coverage, y = pct_coverage, group = genesuperfamily)) + 
+  # geom_tile(width = 0.5) +
+  stat_summary(fun = "mean", geom = "line", color = "gray") +
+  stat_summary(fun.data=mean_se, geom="point", shape = 1, color = "gray") +
+  ggrepel::geom_text_repel(data = data_label, aes(label = genesuperfamily), max.overlaps = Inf,
+                           nudge_x      = -1, xlim = c(1.1, 5), ylim = c(0.80, 2),
+                           direction    = "y",
+                           hjust        = -0.5,
+                           vjust = -1, min.segment.length = 0,
+                           segment.curvature = 0.1, 
+                           segment.size = 0,
+                           size = 1.5, family = "GillSans") +
+  coord_cartesian(expand = T) +
+  my_custom_theme() 
 
 
 library(ggdist)
@@ -144,7 +177,19 @@ p1 <- g_interval +
   # geom_line(aes(y = pct_coverage, group = 2), linewidth = 1) +
   facet_grid(~ facet)
 
-p1
+p1 + stat_summary(aes(group = genesuperfamily), fun.data=mean_se, geom="point", shape = 1, color = "gray")
+
+p1 + ggrepel::geom_text_repel(data = data_label, aes(label = genesuperfamily), max.overlaps = Inf,
+                              nudge_x      = -1, xlim = c(1.1, 5), ylim = c(0.80, 2),
+                              direction    = "y",
+                              hjust        = -0.5,
+                              vjust = -1, min.segment.length = 0,
+                              segment.curvature = 0.1, 
+                              segment.size = 0,
+                              size = 1.5, family = "GillSans") +
+  coord_cartesian(expand = T)
+
+# p1
 
 # 
 # library(patchwork)
