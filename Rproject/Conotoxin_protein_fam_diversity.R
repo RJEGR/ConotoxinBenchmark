@@ -29,9 +29,9 @@ my_custom_theme <- function(...) {
 }
 
 
-outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
+dir <- "/Users/rjegr/Documents/Windows/Documents/ConotoxinBenchmark/INPUTS/"
 
-f <- list.files(path = outdir, pattern = "curated_nuc_conoServerDB.rds", full.names = T)
+f <- list.files(path = dir, pattern = "curated_nuc_conoServerDB.rds", full.names = T)
 
 conoServerDB <- read_rds(f) 
 
@@ -142,7 +142,8 @@ conoServerDB <- conoServerDB %>%
 conoServerDB %>% 
   dplyr::count(proteinsequence_clus, sort = T)
 
-# Protein Family Diversity: The total number of clusters is a direct measure of the number of distinct protein families in your dataset. A higher number of clusters relative to the total number of sequences indicates greater diversity.
+# Protein Family Diversity: The total number of clusters is a direct measure of the number of distinct protein families in your dataset. 
+# A higher number of clusters relative to the total number of sequences indicates greater diversity.
 
 calculate_simpson_diversity <- function(family_members, number_sequeces) {
   # Calculate the total number of sequences (N).
@@ -167,39 +168,64 @@ calculate_simpson_diversity <- function(family_members, number_sequeces) {
 seq_type <- "sequence" # proteinsequence
 seq_name <- paste0(seq_type, "_", "clus")
 
-summarise_df <- conoServerDB %>%  
+summarisedf <- conoServerDB %>%  
   # mutate(genesuperfamily = ifelse(is.na(genesuperfamily), sequence_clus, genesuperfamily)) %>% 
-  dplyr::rename("subject" = seq_type) %>% 
-  distinct(genesuperfamily, subject) %>%
+  dplyr::rename("sequence" = seq_type) %>% 
+  distinct(genesuperfamily, sequence) %>%
+  left_join(sequence_df)
+
+
+summarise_genesuperfamily <- summarisedf %>%
   dplyr::count(genesuperfamily, sort = T) %>%
   dplyr::rename("seq_number" = "n") 
 
-# calculate_simpson_diversity(summarise_df$seq_number)
-
-conoServerDB %>% 
-  distinct_at(c("genesuperfamily", seq_name)) %>%
+summarise_clusters <- summarisedf %>%
+  distinct(genesuperfamily, sequence_clus) %>%
   dplyr::count(genesuperfamily, sort = T) %>%
-  dplyr::rename("clus_number" = "n") %>%
-  left_join(summarise_df, by = "genesuperfamily") %>%
-  mutate(genesuperfamily = gsub("superfamily", "", genesuperfamily)) %>%
-  mutate(genesuperfamily = gsub("Divergent ", "", genesuperfamily)) %>%
+  dplyr::rename("clus_number" = "n") 
+
+summarisedf <- left_join(summarise_genesuperfamily, summarise_clusters) %>% mutate(index = clus_number / seq_number)
+
+View(summarisedf)
+
+calculate_simpson_diversity(number_sequeces = summarisedf$seq_number, family_members = summarisedf$clus_number)
+
+summarisedf
+
+summarisedf %>% 
+  drop_na() %>% 
   group_by(genesuperfamily) %>%
-  mutate(simpson_index = calculate_simpson_diversity(clus_number, seq_number)) %>%
-  ggplot(aes(clus_number, seq_number, label = genesuperfamily)) + 
+  mutate(index = clus_number / seq_number) %>%
+  # mutate(simpson_index = calculate_simpson_diversity(clus_number, seq_number)) %>%
+  ggplot(aes(x = clus_number, y = 1-index, label = genesuperfamily)) + 
   scale_x_log10() +
-  scale_y_log10() +
-  geom_point(shape = 1, aes(size = simpson_index)) +
+  # scale_y_log10() +
+  geom_point(shape = 1, aes(size = seq_number)) +
   ggrepel::geom_text_repel(max.overlaps = 100) +
   my_custom_theme() +
-  labs(y = "Number of conotoxins (log10)", 
-    x = "Number of clusters (log10)", 
+  labs(
+    y = "Diversity (1-index)",
+    # x = "Number of clusters (log10)", 
     caption = "Sequence_complexity.R", subtitle = seq_type) 
 
+caption <- "index"
+
+summarisedf %>% 
+  drop_na() %>% 
+  mutate(index = 1-(clus_number / seq_number)) %>%
+  group_by(genesuperfamily) %>%
+  ungroup() %>% arrange(desc(index)) %>% 
+  mutate(genesuperfamily = factor(genesuperfamily, levels = unique(genesuperfamily))) %>%
+  ggplot(aes(y = genesuperfamily, x = index, alpha = seq_number)) +
+  geom_col() + labs(x = "1 -(Number of clusters/Number of sequences)",caption = caption) +
+  my_custom_theme()
+
 # Continue w/
-# write a chunk of code for Simpson's Diversity Index in r, for a given total number of protein families (clusters), number of sequences in the ith protein family, and thetotal number of sequences in your dataset.
+# write a chunk of code for Simpson's Diversity Index in r, for a given total number of protein families (clusters), 
+# number of sequences in the ith protein family, and thetotal number of sequences in your dataset.
 
 conoServerDB %>% 
-  distinct_at(c("genesuperfamily", seq_name)) %>%
+  # distinct_at(c("genesuperfamily", seq_name)) %>%
   dplyr::count(genesuperfamily, sort = T) %>%
   dplyr::rename("clus_number" = "n") %>%
   left_join(summarise_df, by = "genesuperfamily") %>%
