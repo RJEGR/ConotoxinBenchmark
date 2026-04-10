@@ -1,4 +1,4 @@
-# 
+# TO BE REMOVED
 # Calculate baseline entropy avarege per family, diversity of sequences, and cluster similarity
 # Step 1, clustering and summarise number of clusters vs number of sequences in sf group
 # Step 2, calculate entropy per sequence, and summarise average entropy in sf group
