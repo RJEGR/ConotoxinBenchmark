@@ -126,3 +126,33 @@ DB3 |> filter(n_assemblers == 11)
 
 sequence_df <- clusterize(conoServerDB, seq_type = "sequence")
 
+summarisedf <- conoServerDB %>%  
+  # mutate(genesuperfamily = ifelse(is.na(genesuperfamily), sequence_clus, genesuperfamily)) %>% 
+  # dplyr::rename("sequence" = seq_type) %>% 
+  distinct(genesuperfamily, sequence) %>%
+  left_join(sequence_df)
+
+
+summarise_genesuperfamily <- summarisedf %>%
+  dplyr::count(genesuperfamily, sort = T) %>%
+  dplyr::rename("seq_number" = "n") 
+
+summarise_clusters <- summarisedf %>%
+  distinct(genesuperfamily, sequence_clus) %>%
+  dplyr::count(genesuperfamily, sort = T) %>%
+  dplyr::rename("clus_number" = "n") 
+
+summarisedf <- left_join(summarise_genesuperfamily, summarise_clusters) %>% mutate(index = clus_number / seq_number)
+
+caption <- "index"
+
+summarisedf %>% 
+  drop_na() %>% 
+  mutate(index = 1-(clus_number / seq_number)) %>%
+  group_by(genesuperfamily) %>%
+  ungroup() %>% arrange(desc(index)) %>% 
+  mutate(genesuperfamily = factor(genesuperfamily, levels = unique(genesuperfamily))) %>%
+  ggplot(aes(y = genesuperfamily, x = index, alpha = seq_number)) +
+  geom_col() + labs(x = "1 -(Number of clusters/Number of sequences)",caption = caption) +
+  my_custom_theme()
+
