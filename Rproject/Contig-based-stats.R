@@ -35,7 +35,8 @@ read_transrate_scores <- function(file_list) {
     "prop_gc", 
     "rel_path", 
     "score", 
-    "tpm"
+    "tpm",
+    "reference_coverage"
   )
   
   cat("\nReading\n")
@@ -55,14 +56,27 @@ file_list <- file_list[!grepl("MERGEPIPE", file_list)]
 
 transratedf <- lapply(file_list, read_transrate_scores)
 
-transratedf <- do.call(rbind, transratedf)
+# transratedf[[7]] |> distinct(rel_path)
+
+transratedf[[7]] <- NULL
+
+# read_csv(file_list[[7]])
+
+
+
+transratedf <- do.call(rbind, transratedf) |> 
+  mutate(summarise = "< 80 % alignment") %>%
+  mutate(summarise = ifelse(reference_coverage >= 0.8, ">= 80% alignment", summarise)) %>%
+  mutate(summarise = ifelse(reference_coverage >= 0.9, ">= 90% alignment", summarise)) %>%
+  mutate(summarise = ifelse(reference_coverage >= 0.95, ">= 95% alignment", summarise)) %>%
+  mutate(summarise = ifelse(reference_coverage == 1, "100% alignment", summarise))
 
 DB1 <- transratedf |> 
   mutate(rel_path = basename(dirname(rel_path))) %>%
   # mutate(vfold_set = sapply(strsplit(rel_path, "_"), `[`, 1)) %>%
   # mutate(Assembler = sapply(strsplit(rel_path, "_"), `[`, 5)) |>
   dplyr::rename("protein_id" = contig_name, "Method" = rel_path) |>
-  select(protein_id, Method, p_bases_covered, p_good, score, linguistic_complexity_6)
+  select(protein_id, Method, p_bases_covered, p_good, score, linguistic_complexity_6, reference_coverage, summarise)
 
 dir <- "/Users/rjegr/Documents/Windows/Documents/ConotoxinBenchmark/INPUTS/BLAST_based_annotation_dir/"
 
@@ -164,6 +178,22 @@ DB |>
 DB |>
   mutate(Method = sapply(strsplit(Method, "_"), `[`, 5)) |>
   drop_na(final_annotation, Region) |>
-  ggplot(aes(linguistic_complexity_6, p_good, color = final_annotation)) +
-  geom_point() +
-  facet_grid(Method ~ final_annotation)
+  ggplot(aes(reference_coverage, p_good, color = final_annotation)) +
+  # facet_grid(Method ~ final_annotation) +
+  geom_point() 
+
+
+# FIND BY LM what is the feature (predictor) explain well the accurate annotation (full or multi or hit > 95%)
+
+DB <- DB |> 
+  mutate(Fold = sapply(strsplit(Method, "_"), `[`, 1), 
+         Method = sapply(strsplit(Method, "_"), `[`, 5))
+
+outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
+
+DB |> 
+  group_by(Method) |>
+  sample_n(10) |>
+  write_csv(file.path(outdir, "contig-based-data.csv"))
+  # write_tsv(file.path(outdir, "contig-based-data.tsv"))
+

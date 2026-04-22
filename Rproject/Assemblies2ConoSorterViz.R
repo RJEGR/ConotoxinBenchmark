@@ -227,7 +227,7 @@ p1 <- DataViz |>
   geom_text(data = text_annot, aes(label = label), hjust = 1, size = 2.5)
 
 
-# p1
+p1
 # DB |> write_csv(file = paste0(outdir, "/assemblies2ConoServerSummary.csv"))
 
 
@@ -257,6 +257,7 @@ p2 <- DB |>
                               keywidth = unit(0.35, "cm"), 
                               keyheight = unit(0.35, "cm")))
 
+p2
 
 library(patchwork)
 
