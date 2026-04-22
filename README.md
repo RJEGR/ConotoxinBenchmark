@@ -5,7 +5,9 @@
 ![Alt text](https://github.com/RJEGR/ConotoxinBenchmark/blob/main/Figures/Figure1.png)
 *Figure 1: The database schema describes the workflow used to generate a supplementary database after analyzing RNA-seq data.*
 
-# Author
+# Authors
+
+Díaz-Castillo Brizuela-Rodríguez, Licea-Navarro and Gómez-Reyes (2026)
 
 # Description
 Motivation: Transcriptome data is set to play an increasingly important role in the development of venomics projects, which serves as a source to validate toxin genes to large-scale proteomics. Nevertheless, some limitation in the current proteotranscriptomic workflows relies on the ambiguous matches between both, transcriptome and mass spectrometry data. De Novo transcriptome assembly has been the technique used to obtain a catalog of candidate toxins. The accuracy of the technique to recover full-length toxins is influenced by several factors related to the empirical error from the sequencing platform and the biological composition of the venom RNA sample. While transcriptomic data ideally enhance the annotation of venom proteomes, the evaluation of the sensitivity and precision of assemblers for transcriptome is a key step toward establishing standards for bias identification and ensuring efficient workflow in conotoxin proteo-transcriptomic research.
