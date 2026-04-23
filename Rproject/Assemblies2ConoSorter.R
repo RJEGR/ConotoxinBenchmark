@@ -16,7 +16,10 @@ options(stringsAsFactors = FALSE, readr.show_col_types = FALSE)
 
 library(tidyverse)
 
-outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/ConoSorter_dir"
+# outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS/ConoSorter_dir"
+
+outdir <- "/Users/rjegr/Documents/Windows/Documents/ConotoxinBenchmark/INPUTS/ConoSorter_dir/"
+
 
 dir.create(outdir)
 
@@ -33,7 +36,7 @@ paste_col <- function(x) {
 # f <- Regex_f[1]
 
 read_regex <- function(f, Hydrophobicity_val = 60, pwidth_val = 50) {
-  
+
   cat("Reading ", basename(f), "\n")
   
   DF <- read_delim(f, delim = "|", col_names = T) %>% mutate(Method = basename(f))
@@ -46,7 +49,7 @@ read_regex <- function(f, Hydrophobicity_val = 60, pwidth_val = 50) {
     dplyr::rename("Protein_width"="# A.A", "Cys_number" = "# Cysteine(s)") %>%
     mutate(Cys_number = as.numeric(as.character(Cys_number))) %>%
     dplyr::rename("Score_sf"="Score Superfamily", "Score_class" = "Score Class") %>%
-    dplyr::rename("seq"="Protein Sequence") %>%
+    dplyr::rename("seq"="Protein Sequence", "seq_freq" = "Sequence Frequency") %>%
     mutate(Conflict = Score_sf)
   
   #  ELSE
@@ -61,37 +64,42 @@ read_regex <- function(f, Hydrophobicity_val = 60, pwidth_val = 50) {
   # Filter step as Borghie et al.
   
   DF <- DF %>% 
-    filter(Hydrophobicity > Hydrophobicity_val) %>%
-    filter(Protein_width >= pwidth_val) %>%
+    # Omit filtering step to preserve artefacts
+    # filter(Hydrophobicity > Hydrophobicity_val) %>%
+    # filter(Protein_width >= pwidth_val) %>%
     # Omit conflicts
     mutate(Score_sf = gsub("[^0-9.-]", "", Score_sf)) %>%
     mutate(Score_class = gsub("[^0-9.-]", "", Score_class))
   
   
-  DF1 <- DF %>% select(contains(c("protein_id","Method", "Score_sf","Cys_number","Superfamily ("))) %>%
-    # filter(Score_sf > 0) %>% # Score_sf > 0 == Superfamily != "-"
+  DF1 <- DF %>% 
+    # select(contains(c("protein_id","Method", "Score_sf","Cys_number","Superfamily ("), "Hydrophobicity")) %>%
+    filter(Score_sf > 0) %>%
     pivot_longer(cols = all_of(which_cols), names_to = "Region", values_to = "Superfamily") %>%
+    
+    # Filter all transcripts not annotated by conoSorter, Score_sf > 0 == Superfamily != "-"
+    
     filter(Superfamily != "-") %>%
     mutate(Region = gsub("Superfamily ", "", Region)) %>%
-    group_by(Method, protein_id, Cys_number) %>%
-    summarise(across(Region,.fns = paste_col), Score_sf = n()) %>% ungroup()
+    group_by(Method, protein_id, ID, Cys_number, Hydrophobicity, seq_freq, Protein_width) %>%
+    summarise(across(Region,.fns = paste_col), Score_sf = n(), .groups = "drop_last") %>% ungroup()
   
   
   OUT <- DF %>% 
-    select(contains(c("protein_id","Method", "Score_sf","Superfamily ("))) %>%
-    # filter(Score_sf > 0) %>% 
+    # select(contains(c("protein_id","Method", "Score_sf","Superfamily ("), "ID")) %>%
+    filter(Score_sf > 0) %>%
     pivot_longer(cols = all_of(which_cols), names_to = "Region", values_to = "Superfamily") %>%
     filter(Superfamily != "-") %>%
     mutate(Region = gsub("Superfamily ", "", Region)) %>%
     mutate(Superfamily =  gsub("\\(.*?\\)", "", Superfamily)) %>% 
-    group_by(Method, protein_id) %>%
-    summarise(across(Superfamily, .fns = paste_col)) %>% 
+    group_by(Method, protein_id, ID) %>%
+    summarise(across(Superfamily, .fns = paste_col), .groups = "drop_last") %>% 
     # arrange(desc(Score_sf)) %>%
     left_join(DF1) %>%
     mutate(tab = "Regex")
   
-  # OUT <- OUT %>% left_join(Conflictdf)
-  
+  OUT <- OUT %>% left_join(Conflictdf)
+
   return(OUT)
   
   
@@ -112,8 +120,8 @@ read_pHMM <- function(f,  Hydrophobicity_val = 60, pwidth_val = 50, eval = 0.05)
     mutate(Hydrophobicity = gsub("%", "", Hydrophobicity), Hydrophobicity = as.double(Hydrophobicity)) %>%
     dplyr::rename("Protein_width"="# A.A", "Cys_number" = "# Cysteine(s)") %>%
     mutate(Cys_number = as.numeric(as.character(Cys_number))) %>%
-    dplyr::rename("E_value"="E-value Superfamily") %>%
-    mutate(Conflict = E_value)
+    dplyr::rename("E_value"="E-value Superfamily", "seq_freq" = "Sequence Frequency") %>%
+    mutate(Conflict = gsub("[0-9()]|.e-", "", E_value)) 
   
   protein_id <- DF %>% pull(ID)
   protein_id <- gsub("_[0-9]+_[0-9]+$","", protein_id)
@@ -131,42 +139,35 @@ read_pHMM <- function(f,  Hydrophobicity_val = 60, pwidth_val = 50, eval = 0.05)
   
   
   
-  DF <- DF %>% 
-    filter(as.numeric(E_value) < eval) %>% # omit pval filtering
-    filter(Hydrophobicity > Hydrophobicity_val) %>%
-    filter(Protein_width >= pwidth_val)
+  # DF <- DF %>%
+  #   filter(as.numeric(E_value) < eval) %>%
+  #   filter(Hydrophobicity > Hydrophobicity_val) %>%
+  #   filter(Protein_width >= pwidth_val)
+
   
-  # DF %>% 
-  #   select(contains(c("protein_id","Method", "Score_sf","Superfamily ("))) %>%
-  #   pivot_longer(cols = all_of(which_cols), names_to = "Region", values_to = "Superfamily") %>%
-  #   filter(Superfamily != "-") %>%
-  #   mutate(Region = gsub("Superfamily ", "", Region)) %>%
-  #   group_by(Method, protein_id) %>%
-  #   summarise(across(Region,.fns = paste_col), Score_sf = n()) %>%
-  #   mutate(tab = "Regex")
-  # 
-  
-  DF1 <- DF %>% select(contains(c("protein_id","Method", "Cys_number","Superfamily ("))) %>%
-    # filter(Score_sf > 0) %>% # Score_sf > 0 == Superfamily != "-"
+  DF1 <- DF %>% 
+    # select(contains(c("protein_id","Method", "Cys_number","Superfamily ("))) %>%
     pivot_longer(cols = all_of(which_cols), names_to = "Region", values_to = "Superfamily") %>%
     filter(Superfamily != "-") %>%
     mutate(Region = gsub("Superfamily ", "", Region)) %>%
-    group_by(Method, protein_id, Cys_number) %>%
-    summarise(across(Region,.fns = paste_col), Score_sf = n()) %>% ungroup()
+    # group_by(Method, protein_id, Cys_number) %>%
+    group_by(Method, protein_id, ID, Cys_number, Hydrophobicity, seq_freq, Protein_width) %>%
+    summarise(across(Region,.fns = paste_col), Score_sf = n(), .groups = "drop_last") %>% ungroup()
   
   
   OUT <- DF %>% 
-    select(contains(c("protein_id","Method", "Score_sf","Superfamily ("))) %>%
+    # select(contains(c("protein_id","Method", "Score_sf","Superfamily ("))) %>%
     pivot_longer(cols = all_of(which_cols), names_to = "Region", values_to = "Superfamily") %>%
     filter(Superfamily != "-") %>%
     mutate(Region = gsub("Superfamily ", "", Region)) %>%
     mutate(Superfamily =  gsub("\\(.*?\\)", "", Superfamily)) %>% 
-    group_by(Method, protein_id) %>%
-    summarise(across(Superfamily, .fns = paste_col)) %>% 
+    # group_by(Method, protein_id) %>%
+    group_by(Method, protein_id, ID) %>%
+    summarise(across(Superfamily, .fns = paste_col), .groups = "drop_last") %>% 
     left_join(DF1) %>%
     mutate(tab = "pHMM")
   
-  # OUT <- OUT %>% left_join(Conflictdf)
+  OUT <- OUT %>% left_join(Conflictdf)
   
   return(OUT)
   
@@ -177,9 +178,11 @@ read_pHMM <- function(f,  Hydrophobicity_val = 60, pwidth_val = 50, eval = 0.05)
 # 
 # read_pHMM(pHHM_f[10])
 
-dir1 <- "//wsl.localhost/Debian/home/ricardo/ConoSorter_outdir/nucleotide_dir/"
+# dir1 <- "//wsl.localhost/Debian/home/ricardo/ConoSorter_outdir/nucleotide_dir/"
+# dir2 <- "//wsl.localhost/Debian/home/ricardo/ConoSorter_outdir/peptide_dir/"
 
-dir2 <- "//wsl.localhost/Debian/home/ricardo/ConoSorter_outdir/peptide_dir/"
+dir1 <- "/Users/rjegr/Documents/Windows/Debian/ConoSorter_outdir/nucleotide_dir/"
+dir2 <- "/Users/rjegr/Documents/Windows/Debian/ConoSorter_outdir/peptide_dir//"
 
 
 Read_conoSorter <- function(dir) {
@@ -210,6 +213,9 @@ Read_conoSorter <- function(dir) {
   
 }
 
+View(rbind(
+  read_regex(f = file.path(dir2, "Fold12_200x_PE_samples_BINPACKER.fa.transdecoder_Regex.tab")),
+  read_pHMM(f = file.path(dir2, "Fold12_200x_PE_samples_BINPACKER.fa.transdecoder_pHMM.tab"))))
 
 DB1 <- Read_conoSorter(dir1)
 
@@ -219,7 +225,7 @@ outName <- "Nucleotide_1"
 
 outFile <- file.path(outdir, paste0(outName, "_ConoSorter.rds"))
 
-DB1 |> write_rds(outFile)
+DB1 |> ungroup()|> write_rds(outFile)
 
 rm(DB1);gc()
 
@@ -238,6 +244,6 @@ rm(DB2);gc()
 # 
 # outName <- "Assemblers_2" # this is for PLASS replicates only 
 
-outFile <- file.path(outdir, paste0(outName, "_ConoSorter_regex_pHMM.rds"))
+# outFile <- file.path(outdir, paste0(outName, "_ConoSorter_regex_pHMM.rds"))
 
 
