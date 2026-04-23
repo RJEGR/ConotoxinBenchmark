@@ -45,7 +45,7 @@ read_transrate_scores <- function(file_list) {
   
   read_csv(file_list) %>%
     mutate(rel_path = stringr::str_remove(file_list, paste0("^", dirname(dir), "/"))) |>
-    select(any_of(which_cols))
+    dplyr::select(any_of(which_cols))
 }
 
 dir <- "/Users/rjegr/Documents/Windows/Debian/transrate_contigs_dir/transrate_dir/"
@@ -76,7 +76,7 @@ DB1 <- transratedf |>
   # mutate(vfold_set = sapply(strsplit(rel_path, "_"), `[`, 1)) %>%
   # mutate(Assembler = sapply(strsplit(rel_path, "_"), `[`, 5)) |>
   dplyr::rename("protein_id" = contig_name, "Method" = rel_path) |>
-  select(protein_id, Method, p_bases_covered, p_good, score, linguistic_complexity_6, reference_coverage, summarise)
+  dplyr::select(protein_id, Method, p_bases_covered, p_good, score, linguistic_complexity_6, reference_coverage, summarise)
 
 dir <- "/Users/rjegr/Documents/Windows/Documents/ConotoxinBenchmark/INPUTS/BLAST_based_annotation_dir/"
 
@@ -193,7 +193,7 @@ outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
 
 DB |> 
   group_by(Method) |>
-  sample_n(10) |>
-  write_csv(file.path(outdir, "contig-based-data.csv"))
+  # sample_n(10) |>
+  write_csv(file.path(outdir, "contig-based-data-longer.csv"))
   # write_tsv(file.path(outdir, "contig-based-data.tsv"))
 
