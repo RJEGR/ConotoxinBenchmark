@@ -1,21 +1,19 @@
 #!/bin/bash
 #SBATCH --job-name=conotoxin_clustering
-#SBATCH --account=your_account_here     # Replace with your SLURM account
-#SBATCH --partition=your_partition      # Replace with your partition name
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=24
-#SBATCH --mem=32G                       # Adjust based on your data size
-#SBATCH --time=12:00:00                 # Adjust based on expected runtime
-#SBATCH --output=clustering_batch_%A.out
-#SBATCH --error=clustering_batch_%A.err
+#SBATCH -N 1
+#SBATCH --mem=100GB
+#SBATCH --ntasks-per-node=24
+#SBATCH -t 6-00:00:00
+#SBATCH -o out.%J
+#SBATCH -e err.%J
 
 # Load required modules (adjust based on your cluster setup)
-# module load mmseqs2
-# module load gcc
+
+EXPORT=/LUSTRE/bioinformatica_data/genomica_funcional/rgomez/Software/mmseqs/bin
+export PATH=$PATH:$EXPORT
 
 # Set working directory (change this to your actual working directory)
-WORK_DIR="/path/to/your/work/directory"
+WORK_DIR=$PWD
 cd "$WORK_DIR"
 
 # Path to the clustering script
