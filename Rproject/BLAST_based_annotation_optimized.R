@@ -356,8 +356,7 @@ plot_annotations <- function(annotation_df) {
 # USAGE EXAMPLE
 # ============================================================================
 
-dir <- "~//wsl.localhost/Debian/home/ricardo/blast_outputs/"
-
+# dir <- "~//wsl.localhost/Debian/home/ricardo/blast_outputs/"
 
 dir <- "~/Documents/Windows/Escritorio/blast_outputs/"
 
@@ -367,15 +366,23 @@ pattern <- "1.blast" # this output is using contig assembled as query and refere
 
 str(file_list <- list.files(path = dir, pattern = pattern, recursive = T, full.names = TRUE))
 
-# file_list <- file_list[!grepl("MERGEPIPE|PLASS", file_list)] # Huge sizes because many contigs in PLASS
+file_list <- file_list[!grepl("MERGEPIPE|PLASS", file_list)] # Huge sizes because many contigs in PLASS
 
-file_list <- file_list[grepl("PLASS", file_list)] # Huge sizes because many contigs in PLASS
+# file_list <- file_list[grepl("PLASS", file_list)] # Huge sizes because many contigs in PLASS
 
-outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/BLAST_based_annotation_dir/PLASS_dir"
+outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/BLAST_based_annotation_dir/" # PLASS_dir
 
 dir.create(outdir, recursive = T)
 
 splits <-  unique(sapply(strsplit(basename(file_list), "_"), `[`, 1))
+
+# read_blast_outfmt6(file_list[2]) |> write_tsv(file = "test_error_classes_blast_annotation.tsv")
+# 
+# read_blast_outfmt6(file_list[2]) |> filter(qseqid %in% c("comp338_seq0", "comp67_seq0", "comp336_seq0"))
+#   
+# TESTDF <- annotate_blast_files(file_list[2])
+# 
+# TESTDF |> count(prelim_cat, final_annotation)
 
 process_split_memory_efficient <- function(split_name) {
   cat("Processing", split_name, "...\n")
@@ -407,7 +414,7 @@ for (i in splits) {
 }
 
 
-f <- list.files(outdir, full.names = T)
+f <- list.files(outdir, pattern = ".rds", full.names = T)
 
 annotation_results <- do.call(rbind, lapply(f, read_rds))
 
@@ -417,84 +424,4 @@ annotation_results <- do.call(rbind, lapply(f, read_rds))
 # summarize_annotations(annotation_results)
 
 # plot_annotations(annotation_results)
-
-
-DataViz <- annotation_results %>%
-  filter(final_annotation != "error") %>%
-  group_by(file_name) %>%
-  count(final_annotation) %>%
-  mutate(vfold_set = sapply(strsplit(file_name, "_"), `[`, 1)) %>%
-  mutate(file_name = sapply(strsplit(file_name, "_"), `[`, 5)) %>%
-  mutate(file_name = gsub(".[1|2].blast", "", file_name)) %>%
-  group_by(vfold_set, file_name) %>%
-  # mutate(n = n/sum(n)) %>%
-  group_by(final_annotation, file_name) %>%
-  rstatix::get_summary_stats(type = "mean_sd")
-
-
-# annotation_results %>%
-#   mutate(vfold_set = sapply(strsplit(file_name, "_"), `[`, 1)) %>%
-#   mutate(file_name = sapply(strsplit(file_name, "_"), `[`, 5)) %>%
-#   mutate(file_name = gsub(".[1|2].blast", "", file_name)) %>%
-#   group_by(file_name) %>%
-#   summarize_annotations()
-
-# annotation_results %>%
-#   mutate(vfold_set = sapply(strsplit(file_name, "_"), `[`, 1)) %>%
-#   mutate(file_name = sapply(strsplit(file_name, "_"), `[`, 5)) %>%
-#   mutate(file_name = gsub(".[1|2].blast", "", file_name)) %>%
-#   group_by(file_name) %>%
-#   plot_annotations() +
-#   facet_wrap(~ file_name)
-
-
-
-extrafont::loadfonts(device = "win")
-
-my_custom_theme <- function(base_size = 14, legend_pos = "top", ...) {
-  base_size = 14
-  theme_bw(base_family = "Gill Sans MT", base_size = base_size) +
-    theme(legend.position = legend_pos,
-          strip.placement = "outside", 
-          strip.background = element_rect(fill = 'gray90', color = 'white'),
-          strip.text = element_text(angle = 0, size = base_size, hjust = 0), 
-          axis.text = element_text(size = rel(0.7), color = "black"),
-          panel.grid.minor.y = element_blank(),
-          panel.grid.major.y = element_blank(),
-          panel.grid.minor.x = element_blank(),
-          panel.grid.major.x = element_blank(),
-          ...
-    )
-}
-
-
-
-
-
-
-# viz 2
-# 
-
-DataViz <- annotation_results %>%
-  filter(final_annotation != "error") %>%
-  mutate(vfold_set = sapply(strsplit(file_name, "_"), `[`, 1)) %>%
-  mutate(file_name = sapply(strsplit(file_name, "_"), `[`, 5)) %>%
-  mutate(file_name = gsub(".[1|2].blast", "", file_name)) %>%
-  count(file_name, final_annotation)
-
-DataViz %>%
-  mutate(x = mean) %>%
-  mutate(label = paste0(file_name, " (",  round(x, 3), ")")) %>%
-  filter(final_annotation%in% c("chimera", "fragment")) %>%
-  mutate(xmin = x-sd, xmax = x+sd, xlab = xmax+0.1) %>%
-  ggplot(aes(y = file_name, x = n, fill = final_annotation)) +
-  facet_grid(~ final_annotation) +
-  geom_col(aes(y = file_name, x = x), width = 0.7) + 
-  # geom_text(aes(y = file_name, x = xlab, label = label), hjust = 0.1, size = 3) +
-  geom_errorbar(aes(y = file_name, x = x, xmin = xmin, xmax = xmax), width = 0.15, alpha = 0.3, color = "black") + 
-  scale_fill_startrek() +
-  my_custom_theme() +
-  labs(x = "N of Assemblies") +
-  guides(fill = guide_legend(title = "", byrow = T))
-
 

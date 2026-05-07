@@ -1,0 +1,61 @@
+2026-04-22 13:28:20,311:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 13:28:20,311:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 13:28:20,311:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 13:28:20,311:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 13:37:09,855:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 13:37:09,855:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 13:37:09,855:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 13:37:09,855:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 13:49:42,158:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 13:49:42,158:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 13:49:42,158:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 13:49:42,158:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 14:02:22,698:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 14:02:22,698:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 14:02:22,698:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 14:02:22,698:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 14:04:32,180:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 14:04:32,180:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 14:04:32,180:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 14:04:32,180:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-22 14:05:23,372:INFO:PyCaret RegressionExperiment
+2026-04-22 14:05:23,373:INFO:Logging name: reg-default-name
+2026-04-22 14:05:23,373:INFO:ML Usecase: MLUsecase.REGRESSION
+2026-04-22 14:05:23,373:INFO:version 3.2.0
+2026-04-22 14:05:23,373:INFO:Initializing setup()
+2026-04-22 14:05:23,373:INFO:self.USI: 7b66
+2026-04-22 14:05:23,373:INFO:self._variable_keys: {'pipeline', 'html_param', '_ml_usecase', 'transform_target_param', 'gpu_n_jobs_param', 'y_train', 'X_test', 'memory', 'data', 'fold_shuffle_param', 'gpu_param', 'idx', 'X', 'logging_param', 'y', 'fold_generator', 'fold_groups_param', 'USI', 'log_plots_param', 'y_test', 'seed', 'n_jobs_param', 'target_param', 'exp_id', 'X_train', '_available_plots', 'exp_name_log'}
+2026-04-22 14:05:23,373:INFO:Checking environment
+2026-04-22 14:05:23,373:INFO:python_version: 3.8.20
+2026-04-22 14:05:23,373:INFO:python_build: ('default', 'Oct  3 2024 10:22:23')
+2026-04-22 14:05:23,373:INFO:machine: arm64
+2026-04-22 14:05:23,373:INFO:platform: macOS-15.5-arm64-arm-64bit
+2026-04-22 14:05:23,373:INFO:Memory: svmem(total=17179869184, available=5642813440, percent=67.2, used=7345373184, free=198098944, active=5467799552, inactive=5441437696, wired=1877573632)
+2026-04-22 14:05:23,373:INFO:Physical Core: 10
+2026-04-22 14:05:23,373:INFO:Logical Core: 10
+2026-04-22 14:05:23,373:INFO:Checking libraries
+2026-04-22 14:05:23,373:INFO:System:
+2026-04-22 14:05:23,373:INFO:    python: 3.8.20 (default, Oct  3 2024, 10:22:23)  [Clang 14.0.6 ]
+2026-04-22 14:05:23,373:INFO:executable: /opt/miniconda3/envs/pycaret/bin/python
+2026-04-22 14:05:23,373:INFO:   machine: macOS-15.5-arm64-arm-64bit
+2026-04-22 14:05:23,373:INFO:PyCaret required dependencies:

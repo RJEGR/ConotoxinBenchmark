@@ -1,1 +1,0 @@
-../cluster_toxins_mmseqs.sh

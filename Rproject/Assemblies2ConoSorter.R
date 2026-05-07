@@ -50,7 +50,9 @@ read_regex <- function(f, Hydrophobicity_val = 60, pwidth_val = 50) {
     mutate(Cys_number = as.numeric(as.character(Cys_number))) %>%
     dplyr::rename("Score_sf"="Score Superfamily", "Score_class" = "Score Class") %>%
     dplyr::rename("seq"="Protein Sequence", "seq_freq" = "Sequence Frequency") %>%
-    mutate(Conflict = Score_sf)
+    dplyr::mutate(seq_freq = as.numeric(as.character(seq_freq)),
+                  Protein_width = as.numeric(as.character(Protein_width)),
+                  Conflict = as.character(Score_sf))
   
   #  ELSE
   
@@ -121,7 +123,9 @@ read_pHMM <- function(f,  Hydrophobicity_val = 60, pwidth_val = 50, eval = 0.05)
     dplyr::rename("Protein_width"="# A.A", "Cys_number" = "# Cysteine(s)") %>%
     mutate(Cys_number = as.numeric(as.character(Cys_number))) %>%
     dplyr::rename("E_value"="E-value Superfamily", "seq_freq" = "Sequence Frequency") %>%
-    mutate(Conflict = gsub("[0-9()]|.e-", "", E_value)) 
+    mutate(Conflict = as.character(gsub("[0-9()]|.e-", "", E_value)), 
+           seq_freq = as.numeric(as.character(seq_freq)),
+           Protein_width = as.numeric(as.character(Protein_width))) 
   
   protein_id <- DF %>% pull(ID)
   protein_id <- gsub("_[0-9]+_[0-9]+$","", protein_id)
@@ -213,9 +217,9 @@ Read_conoSorter <- function(dir) {
   
 }
 
-View(rbind(
-  read_regex(f = file.path(dir2, "Fold12_200x_PE_samples_BINPACKER.fa.transdecoder_Regex.tab")),
-  read_pHMM(f = file.path(dir2, "Fold12_200x_PE_samples_BINPACKER.fa.transdecoder_pHMM.tab"))))
+# View(rbind(
+#   read_regex(f = file.path(dir2, "Fold12_200x_PE_samples_BINPACKER.fa.transdecoder_Regex.tab")),
+#   read_pHMM(f = file.path(dir2, "Fold12_200x_PE_samples_BINPACKER.fa.transdecoder_pHMM.tab"))))
 
 DB1 <- Read_conoSorter(dir1)
 
@@ -235,7 +239,7 @@ outName <- "protein_1"
 
 outFile <- file.path(outdir, paste0(outName, "_ConoSorter.rds"))
 
-DB2 |> write_rds(outFile)
+DB2 |> ungroup()|> write_rds(outFile)
 
 rm(DB2);gc()
 

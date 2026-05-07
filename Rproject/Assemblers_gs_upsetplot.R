@@ -1,165 +1,115 @@
-
 # January 2026
-# Sanity check of y axis are the same between plots
-# 
+# Upset plot of assembler combinations x gene superfamily
+# Sanity check: y-axis alignment across panels
 
 rm(list = ls())
-
-if(!is.null(dev.list())) dev.off()
-
+if (!is.null(dev.list())) dev.off()
 options(stringsAsFactors = FALSE, readr.show_col_types = FALSE)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONFIGURE PATHS HERE --------------------------------------------------------
+tmpdir  <- "/Users/rjegr/Documents/Windows/Documents/ConotoxinBenchmark/INPUTS/"
+outdir  <- "/Users/rjegr/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
+blastdir <- "/Users/rjegr/Documents/Windows/Documents/ConotoxinBenchmark/INPUTS/BLAST_based_annotation_dir/"
+# ─────────────────────────────────────────────────────────────────────────────
+
 
 library(tidyverse)
 library(patchwork)
 
-# extrafont::loadfonts(device = "win")
-
+# ── Theme ────────────────────────────────────────────────────────────────────
 my_custom_theme <- function(base_size = 14, legend_pos = "top", ...) {
-  # base_size = 14
-  theme_bw(base_family = "GillSans", base_size = base_size) +
-    theme(legend.position = legend_pos,
-          strip.placement = "outside", 
-          strip.background = element_rect(fill = 'gray90', color = 'white'),
-          strip.text = element_text(angle = 0, size = base_size, hjust = 0), 
-          axis.text = element_text(size = rel(0.7), color = "black"),
-          panel.grid.minor.y = element_blank(),
-          panel.grid.major.y = element_blank(),
-          panel.grid.minor.x = element_blank(),
-          panel.grid.major.x = element_blank(),
-          ...
+  # base_family <- if ("GillSans" %in% systemfonts::system_fonts()$family) "GillSans" else ""
+  base_family <- "GillSans"
+  theme_bw(base_family = base_family, base_size = base_size) +
+    theme(
+      legend.position   = legend_pos,
+      strip.placement   = "outside",
+      strip.background  = element_rect(fill = "gray90", color = "white"),
+      strip.text        = element_text(angle = 0, size = base_size, hjust = 0),
+      axis.text         = element_text(size = rel(0.7), color = "black"),
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.y = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.x = element_blank(),
+      ...
     )
 }
 
-tmpdir <- "/Users/rjegr/Documents/Windows/Documents/ConotoxinBenchmark/INPUTS/"
+# ── Load data ─────────────────────────────────────────────────────────────────
+f_cono <- list.files(tmpdir, pattern = "curated_nuc_conoServerDB.rds", full.names = TRUE)
 
-f <- list.files(path = tmpdir, pattern = "curated_nuc_conoServerDB.rds", full.names = T)
+conoServerDB <- read_rds(f_cono) |>
+  mutate(
+    genesuperfamily = ifelse(is.na(genesuperfamily), "Other", genesuperfamily),
+    genesuperfamily = gsub(" superfamily", "", genesuperfamily)
+  ) |>
+  dplyr::rename(gs_conoServer = genesuperfamily, hits = entry_id) |>
+  distinct(hits, gs_conoServer)
 
-conoServerDB <- read_rds(f) %>% 
-  mutate(genesuperfamily = ifelse(is.na(genesuperfamily), "Other", genesuperfamily)) |>
-  mutate(genesuperfamily = gsub(" superfamily", "", genesuperfamily)) |>
-  dplyr::rename("gs_conoServer" = genesuperfamily, "hits" = "entry_id") |>
-  distinct(hits, gs_conoServer) # organismlatin, organismdiet, 
+transratedf <- read_tsv(file.path(outdir, "benchmark_assemblers.tsv"))
 
+f_blast <- list.files(blastdir, full.names = TRUE, pattern = "\\.rds$")
 
-outdir <- "/Users/rjegr/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
+annotation_results <- do.call(rbind, lapply(f_blast, read_rds)) |>
+  mutate(
+    file_name = gsub("_into_Fold[0-9]+[0-9]+.[12].blast", "", file_name)
+  ) |>
+  dplyr::rename(contig_name = qseqid, Assembler = file_name) |>
+  mutate(
+    vfold_set = sapply(strsplit(Assembler, "_"), `[`, 1),
+    Assembler = sapply(strsplit(Assembler, "_"), `[`, 5)
+  )
 
-dir <- "/Users/rjegr/Documents/Windows/Documents/ConotoxinBenchmark/INPUTS/"
-
-f <- list.files(path = dir, pattern = "curated_nuc_conoServerDB.rds", full.names = T)
-
-# conoServerDB <- read_rds(f) %>% dplyr::rename("hits" = "entry_id")
-
-transratedf <- read_tsv( file.path(outdir, "benchmark_assemblers.tsv"))
-
-
-dir <- "/Users/rjegr/Documents/Windows/Documents/ConotoxinBenchmark/INPUTS/BLAST_based_annotation_dir/"
-
-f <- list.files(dir, full.names = T, pattern = ".rds")
-
-annotation_results <- do.call(rbind, lapply(f, read_rds)) |>
-  mutate(file_name = gsub("_into_Fold[0-9]+[0-9]+.[1|2].blast", "", file_name)) |> 
-  dplyr::rename("contig_name" = qseqid, "Assembler" = file_name) |>
-  mutate(vfold_set = sapply(strsplit(Assembler, "_"), `[`, 1) ,Assembler = sapply(strsplit(Assembler, "_"), `[`, 5))
-
-
-# library(ggVennDiagram)
-# 
-
-dat <- transratedf |> ungroup() |> 
-  # dplyr::filter(!is.na(hits)) %>%
-  distinct(contig_name, Assembler, vfold_set, reference_coverage, hits) |>
-  # Whether or not distinct to count the true number of assignments
-  # distinct(Method, protein_id, Region, tab) |> 
-  # Use right Join to count the number of full contigs
-  left_join(annotation_results, by = c("contig_name", "Assembler", "vfold_set")) |>
-  dplyr::distinct(Assembler, reference_coverage, hits, final_annotation) |>
-  left_join(conoServerDB, relationship = "many-to-many")
-
-
-
-
-recode_to <- c("STRINGTIE","SPADES", "TRINITY","IDBA", "MEGAHIT", "RNABLOOM" ,"BRIDGER", "TRANSABBYS", "BINPACKER","SOAPDENOVO" ,"CSTONE", "TRANSLIG", "Baseline", "PLASS")
-
-recode_to <- structure(c("StringTie","rnaSPAdes", "Trinity", "IDBA", "MEGAHIT", "RNA-Bloom","BRIDGER","Trans-ABySS", "BinPacker", "SOAP-denovo", "Cstone", "TransLiG", "Baseline", "PinguiN (nuclassemble)"), names = recode_to)
-
-
-dat <- dat |> dplyr::mutate(Assembler = dplyr::recode(Assembler, !!!recode_to)) 
-
-discrete_scale <- dat %>% ungroup() %>% distinct(Assembler) %>% pull()
-
-n <- length(discrete_scale)
-
-scale_col <- c(ggsci::pal_startrek()(7), ggsci::pal_cosmic()(n-7))
-
-scale_col <- structure(scale_col, names = sort(discrete_scale))
-
-# f_assembler <- c("StringTie","rnaSPAdes", "Trinity", "IDBA", "MEGAHIT", "RNA-bloom", "Plass")
-f_assembler <- c("rnaSPAdes", "Trinity", "RNA-Bloom")
-
-dat |> count(Assembler) 
-
-dat <- dat |>
-  filter(Assembler %in% f_assembler) |>
-  dplyr::filter(!is.na(hits)) |>
-  filter(final_annotation %in% c("multi", "full"))
-# dplyr::filter(reference_coverage >= 0.95)
-
-
-dat |> count(Assembler) 
-
-scale_col <- c(
-  BinPacker = "#CC0C00FF",
-  BRIDGER = "#5C88DAFF",
-  Cstone = "#84BD00FF",
-  IDBA = "#FFCD00FF",
-  MEGAHIT = "#7C878EFF",
-  PLASS = "#00B5E2FF",
-  `RNA-Bloom` = "#00AF66FF",
-  `SOAP-denovo` = "#2E2A2BFF",
-  rnaSPAdes = "#CF4E9CFF",
-  StringTie = "#8C57A2FF",
-  Transabbys = "#358DB9FF",
-  TransLiG = "#82581FFF",
-  Trinity = "#2F509EFF"
+# ── Assembler name recoding ───────────────────────────────────────────────────
+recode_to <- c(
+  STRINGTIE = "StringTie",  SPADES    = "rnaSPAdes",
+  TRINITY   = "Trinity",    IDBA      = "IDBA",
+  MEGAHIT   = "MEGAHIT",    RNABLOOM  = "RNA-Bloom",
+  BRIDGER   = "BRIDGER",    TRANSABBYS= "Trans-ABySS",
+  BINPACKER = "BinPacker",  SOAPDENOVO= "SOAP-denovo",
+  CSTONE    = "Cstone",     TRANSLIG  = "TransLiG",
+  Baseline  = "Baseline",   PLASS     = "PinguiN (nuclassemble)"
 )
 
-# dat <- transratedf %>% 
-#   filter(Assembler %in% assemblers) %>%
-#   dplyr::filter(!is.na(hits)) %>%
-#   dplyr::distinct(Assembler, reference_coverage, hits) 
-# 
+scale_col <- c(
+  BinPacker   = "#CC0C00FF", BRIDGER     = "#5C88DAFF",
+  Cstone      = "#84BD00FF", IDBA        = "#FFCD00FF",
+  MEGAHIT     = "#7C878EFF", PLASS       = "#00B5E2FF",
+  `RNA-Bloom` = "#00AF66FF", `SOAP-denovo`= "#2E2A2BFF",
+  rnaSPAdes   = "#CF4E9CFF", StringTie   = "#8C57A2FF",
+  Transabbys  = "#358DB9FF", TransLiG    = "#82581FFF",
+  Trinity     = "#2F509EFF"
+)
 
+# ── Build analysis dataset ────────────────────────────────────────────────────
+f_assembler <- c("rnaSPAdes", "Trinity", "RNA-Bloom")
 
-# Create combinations of assemblers for each hit
-# 
+dat <- transratedf |>
+  ungroup() |>
+  distinct(contig_name, Assembler, vfold_set, reference_coverage, hits) |>
+  left_join(annotation_results, by = c("contig_name", "Assembler", "vfold_set")) |>
+  distinct(Assembler, reference_coverage, hits, final_annotation) |>
+  left_join(conoServerDB, relationship = "many-to-many") |>
+  mutate(Assembler = dplyr::recode(Assembler, !!!recode_to)) |>
+  filter(
+    Assembler %in% f_assembler,
+    !is.na(hits),
+    final_annotation %in% c("multi", "full")
+  )
 
+# ── Combination summaries ─────────────────────────────────────────────────────
 hits_combinations <- dat |>
   distinct(Assembler, hits) |>
   group_by(hits) |>
   summarise(
-    combination = paste(sort(unique(Assembler)), collapse = ","),
+    combination  = paste(sort(unique(Assembler)), collapse = ","),
     n_assemblers = n_distinct(Assembler),
-    .groups = "drop"
+    .groups      = "drop"
   ) |>
-  count(combination, name = "count")
-
-# hits_combinations_bar <- dat |>
-#   distinct(Assembler, hits, final_annotation) |>
-#   group_by(hits, final_annotation) |>
-#   summarise(
-#     combination = paste(sort(unique(Assembler)), collapse = ","),
-#     n_assemblers = n_distinct(Assembler),
-#     .groups = "drop"
-#   ) |>
-#   count(final_annotation, combination, name = "count") |>
-#   dplyr::filter(!is.na(final_annotation))
-
-
-# Reorder by count (descending)
-hits_combinations <- hits_combinations |>
+  count(combination, name = "count") |>
   mutate(combination = fct_reorder(combination, count, .desc = TRUE))
-
-# Get assembler counts
 
 assembler_counts <- dat |>
   distinct(Assembler, hits) |>
@@ -167,253 +117,260 @@ assembler_counts <- dat |>
   arrange(hits_count) |>
   mutate(Assembler = fct_reorder(Assembler, hits_count, .desc = TRUE))
 
+combination_lev <- rev(levels(hits_combinations$combination))
 
-# Create intersection points data (assembler x combination)
+# Intersection matrix (which assemblers appear in each combination)
 points_data <- hits_combinations |>
-  mutate(
-    assemblers = str_split(combination, ",")
-  ) |>
+  mutate(assemblers = str_split(combination, ",")) |>
   unnest(assemblers) |>
   mutate(
-    assemblers = factor(assemblers, levels = levels(assembler_counts$Assembler)),
+    assemblers  = factor(assemblers, levels = levels(assembler_counts$Assembler)),
     combination = factor(combination, levels = levels(hits_combinations$combination))
   ) |>
   filter(assemblers != "")
 
-combination_lev <- rev(levels(hits_combinations$combination))
-
-# 1. Main bar chart (hits per combination)
-
-bar_chart <- 
-  hits_combinations |>
-  mutate(label = paste0(" (", count,")")) |>
-  mutate(col = ifelse( grepl(",", combination), "Intersect", "Unique")) |>
+# ── Plot 1: bar chart – hits per combination ──────────────────────────────────
+bar_chart <- hits_combinations |>
+  mutate(
+    label = paste0(" (", count, ")"),
+    col   = ifelse(grepl(",", combination), "Intersect", "Unique")
+  ) |>
   ggplot(aes(y = combination, x = count)) +
   geom_col(width = 0.6, aes(fill = col)) +
-  geom_text(aes(label = label),
-            vjust = 0.5, hjust = 1.5, size= 1.5,
-            color="black",
-            # position=position_dodge(0.5),
-            family =  "GillSans") +
-  # scale_x_discrete(position = "top", drop = FALSE) + 
+  geom_text(aes(label = label), vjust = 0.5, hjust = 1.5,
+            size = 1.5, color = "black") +
   scale_y_discrete(limits = combination_lev, labels = NULL) +
-  scale_x_reverse(position = "top", limits = c(0, 750), labels = NULL) +
-  my_custom_theme() +
+  scale_x_reverse(position = "top", labels = NULL) +
   scale_fill_manual(values = c("gray90", "black")) +
+  my_custom_theme() +
   theme(
-    legend.position = "none",
-    axis.ticks = element_blank(),
-    panel.border = element_blank(),
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor.y = element_blank(),
-    axis.text.x.top = element_text(angle = 0, vjust = -0.5, hjust = 1)
+    legend.position      = "none",
+    axis.ticks           = element_blank(),
+    panel.border         = element_blank(),
+    axis.text.x.top      = element_text(angle = 0, vjust = -0.5, hjust = 1)
   ) +
   coord_cartesian(expand = FALSE) +
-  labs(x = element_blank(), y = element_blank())
+  labs(x = NULL, y = NULL)
 
-bar_chart
+# ── Plot 2: intersection point chart ─────────────────────────────────────────
 
-# 2. Intersection point chart (shows which assemblers in each combination)
-# 
+breaks <- hits_combinations |> mutate(label = paste0("(", count, ")")) |> 
+  # mutate(label = reorder(label, count, .desc = TRUE)) |>
+  pull(combination, name = label)
+
 
 point_chart <- points_data |>
-  # dplyr::mutate(assemblers = dplyr::recode(assemblers, !!!recode_to)) |>
-  mutate(col = ifelse( grepl(",", combination), "Intersect", "Unique")) |>
-  mutate(facets = "Intersections") |>
+  mutate(col = ifelse(grepl(",", combination), "Intersect", "Unique")) |>
   ggplot(aes(y = combination, x = assemblers)) +
-  # ggstats::geom_stripped_cols() +
-  geom_tile(aes(fill = assemblers), height = Inf, width = 0.9 , alpha = 0.2) +
-  geom_line(aes(group = combination, colour = col), size = 0.7) +
+  geom_tile(aes(fill = assemblers), height = Inf, width = 0.9, alpha = 1) +
+  geom_line(aes(group = combination, colour = col), linewidth = 0.7) +
   geom_point(aes(colour = col), size = 1.25) +
-  # facet_grid(facets ~ ., switch = "y") +
-  my_custom_theme() +
-  scale_x_discrete(position = "top", drop = FALSE) + 
-  scale_y_discrete(limits = combination_lev) +
+  scale_x_discrete(position = "top", drop = FALSE) +
+  scale_y_discrete(limits = combination_lev, breaks = breaks) +
   scale_color_manual(values = c("gray90", "black")) +
-  scale_fill_manual(values = scales::alpha(scale_col, 0.2)) +
+  scale_fill_manual(values = scales::alpha(scale_col, 1)) +
   guides(fill = "none", color = "none") +
+  my_custom_theme() +
   theme(
-    legend.position = "none",
-    panel.border = element_blank(),
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor.y = element_blank(),
-    axis.text.y = element_blank(),
-    axis.ticks = element_blank(),
-    axis.text.x.top = element_text(angle = -45, vjust = -0.5, hjust = 1)
+    legend.position      = "none",
+    panel.border         = element_blank(),
+    # axis.text.y          = element_blank(),
+    axis.ticks           = element_blank(),
+    axis.text.x.top      = element_text(angle = -45, vjust = -0.5, hjust = 1)
   ) +
-  # coord_cartesian(expand = FALSE) +
-  labs(x = "", y = "") 
+  labs(x = "", y = "")
 
-
-point_chart
-
-# 3. Side bar chart (total hits per assembler)
-
+# ── Plot 3: total hits per assembler (side bar) ───────────────────────────────
 assembler_bars <- assembler_counts |>
   ggplot(aes(y = hits_count, x = Assembler)) +
-  geom_col(width = 0.6, fill = 'gray90') +
-  # geom_segment(aes(x = Assembler, y = 0, yend = -hits_count), size = 12) +
-  geom_text(aes(label = Assembler), size = 1.5, hjust = 1.5, vjust = 0.5, angle = -90, color = "white") +
+  geom_col(width = 0.6, fill = "gray90") +
+  geom_text(aes(label = Assembler), size = 1.5, hjust = 1.5,
+            vjust = 0.5, angle = -90, color = "white") +
   scale_y_reverse() +
-  # ggstats::geom_stripped_cols() +
   my_custom_theme() +
   theme(
-    axis.ticks = element_blank(),
-    panel.border = element_blank(),
-    axis.text.x = element_blank(),
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor.y = element_blank(),
+    axis.ticks           = element_blank(),
+    panel.border         = element_blank(),
+    axis.text.x          = element_blank()
   ) +
   coord_cartesian(expand = FALSE) +
-  labs(x = element_blank(), y = "# Conotoxins")
+  labs(x = NULL, y = "# Conotoxins")
 
-# 4.
-# 
+# ── Plot 4: gene superfamily heatmap ─────────────────────────────────────────
 
-# Create combinations of assemblers by gene superfamilies 
-# 
-
-# Individual values
-
+# Per-hit coverage + counts across assembler-combination × superfamily
 mean_combinations_v2 <- dat |>
   group_by(hits, Assembler, gs_conoServer) |>
   summarise(mean = mean(reference_coverage), n = n_distinct(hits), .groups = "drop")
 
 mean_combinations_v2 <- dat |>
   distinct(Assembler, hits, gs_conoServer) |>
-  group_by(hits) |>
+  group_by(hits, gs_conoServer) |>
   summarise(
     combination = paste(sort(unique(Assembler)), collapse = ","),
     .groups = "drop"
   ) |>
-  left_join(mean_combinations_v2) |>
+  # left_join(mean_combinations_v2, by = "hits") |>
   group_by(combination, gs_conoServer) |>
-  # rstatix::get_summary_stats(type = "mean_se") 
-  summarise(se = sd(mean)/sum(n),  n = n_distinct(hits), mean = mean(mean),  .groups = "drop")
+  summarise(
+    # se   = sd(mean) / sum(n),
+    n    = n_distinct(hits),
+    # mean = mean(mean),
+    .groups = "drop"
+  )
 
-mean_combinations_v2|> filter(combination == "MEGAHIT")
+# Superfamily order (most abundant first)
+gs_levs <- mean_combinations_v2 |>
+  group_by(gs_conoServer) |>
+  tally(n, sort = TRUE) |>
+  pull(gs_conoServer)
 
-mean_combinations_v2 |>
-  group_by(gs_conoServer) |> tally(n, sort = T) |> pull(gs_conoServer) -> gs_levs
-
-# create a new variable from count
-labels_or_brakes <- c("0", "0-1", "1-10", "10-100", "100-500", ">500")
-
-# 1. Generar los cortes automáticos
+# ── FIX: dynamic countfactor labels ──────────────────────────────────────────
+# pretty() may return 0 as the first break; c(-1, breaks) adds a leading bin
+# for zero-count cells.  We need exactly length(breaks) labels — one per
+# interval in c(-1, breaks[1], breaks[2], ..., breaks[k]).
 breaks <- pretty(mean_combinations_v2$n)
+k      <- length(breaks)
 
-# 2. Crear etiquetas dinámicas basadas en esos breaks
-# Tomamos el inicio y el fin de cada intervalo
-labels_auto <- paste0(head(breaks, -1), "-", tail(breaks, -1))
-
-# 3. Ajustar la primera y última etiqueta (opcional, para estética)
-labels_auto[1] <- paste0(breaks[1]) # Ejemplo: "0"
-labels_auto[length(labels_auto)] <- paste0(">", breaks[length(breaks)-1])
-
+# Build labels to match each of the k intervals created by c(-1, breaks):
+#   Interval 1 : (-1,       breaks[1]] → "0"        (zero / absent)
+#   Interval 2 : (breaks[1], breaks[2]] → "0-100"   (middle bins)
+#   ...
+#   Interval k : (breaks[k-1], breaks[k]] → ">breaks[k-1]"
+labels_auto <- c(
+  as.character(breaks[1]),                                    # "0"
+  if (k > 2) paste0(breaks[1:(k-2)], "-", breaks[2:(k-1)]), # middle intervals
+  paste0(">", breaks[k-1])                                    # open upper bin
+)
+# labels_auto now has exactly length(breaks) = k elements  ✓
 
 mean_combinations_v2 <- mean_combinations_v2 |>
-  mutate(gs_conoServer = factor(gs_conoServer, levels = gs_levs)) |>
-  mutate(countfactor=cut(n, breaks=c(-1, breaks),
-                       labels= labels_auto)) 
-  # mutate(countfactor = ifelse(sapply(countfactor, is.null), NA, countfactor))
+  mutate(
+    gs_conoServer = factor(gs_conoServer, levels = gs_levs),
+    countfactor   = cut(n,
+                        breaks = c(-1, breaks),
+                        labels = labels_auto)
+  )
 
-mean_combinations_v2 |> count(countfactor)
+# Dynamic palette: one colour per factor level
+n_levels   <- length(labels_auto)
+fill_vals  <- rev(scales::pal_brewer(palette = "YlGnBu")(n_levels))
+fill_named <- setNames(fill_vals, labels_auto)
 
 mean_chart_v2 <- mean_combinations_v2 |>
   complete(combination, gs_conoServer) |>
   ggplot(aes(y = combination, x = gs_conoServer, fill = countfactor)) +
-  geom_tile(color = "white", size = 0.25, na.rm = F) +
+  geom_tile(color = "white", linewidth = 0.4, na.rm = FALSE) +
   geom_text(aes(label = scales::comma(n)), size = 1.5) +
-  # geom_point(aes(color = Assembler), size = 1, alpha = 0.8, shape = 3, position = position_dodge(0.8)) +
-  # geom_errorbar(aes(color = Assembler, xmin = min, xmax = mean), alpha = 0.8, position = position_dodge(0.8), size = 0.5, width = 0) +
-  # ggstats::geom_stripped_rows() +
-  my_custom_theme(base_size = 10) +
   scale_y_discrete(limits = combination_lev, labels = NULL) +
   scale_x_discrete(position = "top") +
-  scale_fill_manual(values=rev(scales::pal_brewer(palette = "YlGnBu")(7)), na.value="grey90", breaks = labels_or_brakes) +
-  # scale_color_manual("", values = scale_col) +
-  theme(
-    axis.text.x = element_text(size = 5, angle = -45, vjust = -0.5, hjust = 1),
-    legend.position = "top",
-    axis.ticks = element_blank(),
-    panel.border = element_blank(),
-    axis.text.y = element_blank(),
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor.y = element_blank(),
+  scale_fill_manual(
+    values   = fill_named,
+    na.value = "grey90",
+    breaks   = labels_auto          # legend ordered low → high
   ) +
-  # coord_cartesian(expand = FALSE) +
+  my_custom_theme(base_size = 10) +
+  guides(fill = guide_legend(
+    title          = "Number of toxins",
+    title.position = "top",
+    title.hjust    = 0,
+    keywidth       = unit(0.35, "cm"),
+    keyheight      = unit(0.35, "cm"),
+    override.aes   = list(size = 5)
+  )) +
+  theme(
+    axis.text.x      = element_text(size = 7, angle = -45, vjust = -0.5, hjust = 1),
+    legend.position  = "top",
+    axis.ticks       = element_blank(),
+    panel.border     = element_blank(),
+    axis.text.y      = element_blank()
+  ) +
   labs(x = "", y = "")
 
-mean_chart_v2 <- mean_chart_v2 +
-  guides(fill = guide_legend(title = "Number of toxins",
-                             title.position = "top", title.hjust = 0,
-                             keywidth = unit(0.35, "cm"), 
-                             keyheight = unit(0.35, "cm"),
-                             override.aes = list(size = 5)))
+# ── Plot 5: mean reference coverage per combination ───────────────────────────
+# gradRGB <- encode_pattern_params_as_hex_colour(pattern_name="gradient",angle=90, 
+#                                                colour1="White", colour2="#0570b0")
 
-# Global
+mean_chart <- dat |>
+  group_by(hits) |>
+  summarise(
+    combination        = paste(sort(unique(Assembler)), collapse = ","),
+    reference_coverage = mean(reference_coverage),
+    .groups            = "drop"
+  ) |> mutate(facet = "Sequence identiy") |>
+  ggplot(aes(x = reference_coverage, y = combination, fill = after_stat(x))) + 
+  # facet_grid(~facet) +
+  scale_y_discrete("", limits = combination_lev, labels = NULL) +
+  scale_x_continuous("", position = "top", limits = c(0, 1.15), breaks = c(0, 0.5, 1)) +
+  ggridges::geom_density_ridges_gradient(
+    scale = 0.8,  alpha=0.33, 
+    # fill=gradRGB, 
+    colour = alpha(0.1),
+    jittered_points = T,
+    position = ggridges::position_points_jitter(width = 0.05, height = 0),
+    point_shape = '|', point_size = 0.5, point_alpha = 1) +
+  # scale_fill_viridis_c(option = "D", direction = -1) +
+  my_custom_theme(legend_pos = "none", base_size = 10) +
+  theme(
+    axis.ticks   = element_blank(),
+    panel.border  = element_blank(),
+    axis.text.y  = element_blank(),
+    axis.text.x.top      = element_text(size = 10)
+  ) 
+
+mean_chart
 
 mean_combinations <- dat |>
   group_by(hits) |>
   summarise(
-    combination = paste(sort(unique(Assembler)), collapse = ","),
-    # n_assemblers = n_distinct(Assembler),
+    combination        = paste(sort(unique(Assembler)), collapse = ","),
     reference_coverage = mean(reference_coverage),
-    .groups = "drop"
-  ) |> 
-  group_by(combination) |> rstatix::get_summary_stats(type = "mean_sd") 
+    .groups            = "drop"
+  ) |>
+  group_by(combination) |>
+  rstatix::get_summary_stats(type = "mean_sd")
 
-mean_chart <- mean_combinations |>
-  # mutate(assemblers = str_split(combination, ",")) |> unnest(assemblers) |>
-  mutate(min = mean-sd, max = mean+sd) |>
-  ggplot(aes(y = combination, x = mean)) +
-  geom_point(size = 1.5, alpha = 0.5) +
-  geom_errorbar(aes(xmin = min, xmax = max), width = 0.2) +
-  ggstats::geom_stripped_rows() +
-  my_custom_theme() +
-  scale_y_discrete(limits = combination_lev, labels = NULL) +
-  scale_x_continuous(position = "top", limits = c(0,1.15), breaks = c(0,0.5,1)) +
-  theme(
-    axis.ticks = element_blank(),
-    panel.border = element_blank(),
-    axis.text.y = element_blank(),
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor.y = element_blank(),
-  ) +
-  # coord_cartesian(expand = FALSE) +
-  labs(x = element_blank(), y = element_blank())
+# 
+# mean_chart <- mean_combinations |>
+#   mutate(min = mean - sd, max = mean + sd) |>
+#   ggplot(aes(y = combination, x = mean)) +
+#   geom_point(size = 1.5, alpha = 0.5) +
+#   geom_errorbar(aes(xmin = min, xmax = max), width = 0.2) +
+#   ggstats::geom_stripped_rows() +
+#   scale_y_discrete(limits = combination_lev, labels = NULL) +
+#   scale_x_continuous(position = "top", limits = c(0, 1.15), breaks = c(0, 0.5, 1)) +
+#   my_custom_theme() +
+#   theme(
+#     axis.ticks   = element_blank(),
+#     panel.border = element_blank(),
+#     axis.text.y  = element_blank()
+#   ) +
+#   labs(x = NULL, y = NULL)
 
-
-
-
-# Match plots to areas by name
-design <- "#AC
-           #B#"
-
-
-PSAVE <- wrap_plots(C = bar_chart, 
-                    B = assembler_bars, 
-                    A = point_chart, design = design) +
-  plot_layout(heights  = c(0.65,0.15,1))
-
-PSAVE
-
-# ggsave(PSAVE, filename = 'figure_3_upset_plot_.png', path = outdir, width = 5, height = 7, device = png, dpi = 800)
-
-# Match plots to areas by name
-design <- "CAD"
-
-
-PSAVE <- wrap_plots(D = mean_chart_v2, 
-                    C = bar_chart, 
-                    # B = assembler_bars, 
-                    A = point_chart, design = design) +
+# ── Assemble & save figure_3_upset_plot_.png ──────────────────────────────────
+PSAVE <- wrap_plots(
+  D = mean_chart_v2,
+  C = mean_chart,
+  A = point_chart,
+  design = "CAD"
+) +
   plot_layout(
-    # guides = "collect", axis_titles = "collect",
-    heights  = c(1), widths = c(0.20, 0.2, 0.70)) &
-  theme(legend.position = "top", 
-        # plot.margin = unit(c(0, 0, 0, 0), "cm"), 
-        panel.spacing = unit(0, "cm"))
+    heights = 1,
+    widths  = c(0.1, 0.1, 0.70)
+  ) &
+  theme(
+    plot.margin = margin(1,0,1,0),
+    # panel.spacing   = unit(0, "cm")
+  )
 
-ggsave(PSAVE, filename = 'figure_3_upset_plot_.png', path = outdir, width = 7, height = 5, device = png, dpi = 800)
+ggsave(
+  PSAVE,
+  filename = "figure_3_upset_plot_.png",
+  path     = outdir,
+  width    = 10,
+  height   = 3,
+  device   = png,
+  dpi      = 800
+)
 
+# message("Saved: ", file.path(outdir, "figure_3_upset_plot_.png"))

@@ -54,14 +54,19 @@ read_transrate_scores <- function(file_list) {
     mutate(rel_path, vfold_set, Assembler)
 }
 
-recode_to <- c("STRINGTIE","SPADES", "TRINITY","IDBA", "MEGAHIT", "RNABLOOM", "BRIDGER", "TRANSABBYS", "BINPACKER","SOAPDENOVO" ,"CSTONE", "TRANSLIG")
+# recode_to <- c("STRINGTIE","SPADES", "TRINITY","IDBA", "MEGAHIT", "RNABLOOM", "BRIDGER", "TRANSABBYS", "BINPACKER","SOAPDENOVO" ,"CSTONE", "TRANSLIG")
+# recode_to <- structure(c("StringTie","Spades", "Trinity", "IDBA", "MEGAHIT", "RNA-bloom", "BRIDGER","Transabbys", "BinPacker", "SOAP-denovo", "Cstone", "TransLiG"), names = recode_to)
 
-recode_to <- structure(c("StringTie","Spades", "Trinity", "IDBA", "MEGAHIT", "RNA-bloom", "BRIDGER","Transabbys", "BinPacker", "SOAP-denovo", "Cstone", "TransLiG"), names = recode_to)
+recode_to <- c("STRINGTIE","SPADES", "TRINITY","IDBA", "MEGAHIT", "RNABLOOM" ,"BRIDGER", "TRANSABBYS", "BINPACKER","SOAPDENOVO" ,"CSTONE", "TRANSLIG", "Baseline", "PLASS")
+
+recode_to <- structure(c("StringTie","rnaSPAdes", "Trinity", "IDBA", "MEGAHIT", "RNA-Bloom","BRIDGER","Trans-ABySS", "BinPacker", "SOAP-denovo", "Cstone", "TransLiG", "Baseline", "PinguiN (nuclassemble)"), names = recode_to)
 
 
-outdir <- "~/Documents/Windows/Documents/ConotoxinBenchmark/INPUTS/"
+outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
 
-f <- list.files(path = outdir, pattern = "curated_nuc_conoServerDB.rds", full.names = T)
+dir <- "~/Documents/Windows/Documents/ConotoxinBenchmark/INPUTS/"
+
+f <- list.files(path = dir, pattern = "curated_nuc_conoServerDB.rds", full.names = T)
 
 conoServerDB <- read_rds(f) |> dplyr::rename("hits" = "entry_id")
 
@@ -90,12 +95,16 @@ transratedf |>
   dplyr::mutate(Assembler = dplyr::recode_factor(Assembler, !!!recode_to)) |>
   write_tsv(file = file.path(dir, "benchmark_assemblers.tsv"))
 
-
+additive_method <- transratedf |>
+  dplyr::mutate(Assembler = dplyr::recode_factor(Assembler, !!!recode_to)) |>
+  filter(Assembler %in% c("rnaSPAdes", "Trinity", "RNA-Bloom")) |>
+  mutate(Assembler = "Additive method")
 
 metricsdf <- transratedf %>% 
+  rbind(additive_method) |>
   filter(length >= 200) %>%
   group_by(vfold_set, Assembler) %>%
-  calculate_metrics(reference_coverage_val = c(0.5,0.6,0.70, 0.80, 0.85, 0.90, 0.95, 1)) %>% 
+  calculate_metrics(reference_coverage_val = c(0.5,0.6,0.70, 0.80, 0.85, 0.90, seq(0.9,1, by = 0.01))) %>% 
   mutate(
     Ratio = TP / FP,
     Accuracy = TP / (TP + FN + FP),
@@ -129,15 +138,16 @@ scale_col <- structure(scale_col, names = sort(discrete_scale))
 text_data <- metricsdf |> 
   filter(reference_coverage_val == 0.5) |>
   group_by(Assembler, reference_coverage_val) |>
-  summarise(Accuracy = mean(Accuracy))
+  summarise(Accuracy = mean(Accuracy), .groups = "drop_last")
 
 
 metricsdf %>% 
-  ggplot(aes(group = Assembler, x = as.factor(reference_coverage_val), y = Accuracy, color = Assembler)) +
+  ggplot(aes(group = Assembler, x = reference_coverage_val, y = Accuracy, color = Assembler, fill = Assembler)) +
+  scale_x_continuous(breaks = c(0.5,0.6,0.70, 0.80,0.90,1)) +
   # geom_text(data = text_data, aes(label = Assembler),  hjust = -0.3, color = "gray70", angle = 360, size = 3) +
   ggrepel::geom_text_repel(data = text_data, aes(label = Assembler), 
                            max.overlaps = Inf,
-                           nudge_x      = -0.7, 
+                           nudge_x      = -0.1, 
                            # xlim = c(1.1, 5),
                            # ylim = c(0.80, 2),
                            direction    = "y",
@@ -145,15 +155,16 @@ metricsdf %>%
                            # vjust = -1, 
                            min.segment.length = 0,
                            segment.curvature = 0.1, 
-                           segment.size = 0,
+                           segment.size = 0.1,
                            size = 1.5, family = "GillSans") +
   # geom_jitter(position = position_jitter(0.1), shape = 1) +
-  stat_summary(fun = "mean", geom = "point", shape = 1, size =1) +
-  stat_summary(fun.data=mean_se, geom="errorbar", width = 0.1, size = 0.2) +
-  stat_summary(fun.data=mean_se, geom="line") +
   geom_hline(yintercept=0.5, linetype="dashed",color = "gray", size=0.5) +
-  geom_vline(xintercept = "0.95", linetype="dashed", color = "gray", size=0.5) +
+  geom_vline(xintercept = 0.95, linetype="dashed", color = "gray", size=0.5) +
+  stat_summary(fun.data=mean_se, geom="errorbar", width = 0.01, size = 0.2) +
+  stat_summary(fun.data=mean_se, geom="line") +
+  stat_summary(fun = "mean", geom = "point", shape = 21, size = 1.5, color = "white", stroke = 0.5) +
   scale_color_manual("", values = scale_col) +
+  scale_fill_manual("", values = scale_col) +
   # scale_fill_manual("", values = scale_col) +
   my_custom_theme(legend_pos = "none") +
   labs(x = "Sequence identity threshold") -> psave
@@ -163,7 +174,7 @@ ggsave(psave, filename = 'Assemblers_Accuracy_thresholds.png',
 
 
 metricsdf_flt <- metricsdf |> 
-  filter(reference_coverage_val == 0.95) |>
+  filter(as.character(reference_coverage_val) == "0.95") |>
   group_by(Assembler) |> 
   # filter-out outliers
   mutate(Sensitivity = ifelse(rstatix::is_outlier(Sensitivity), NA, Sensitivity)) |>
@@ -181,7 +192,7 @@ line_data <- metricsdf_flt |>
 
 
 metricsdf |>
-  filter(reference_coverage_val == 0.95) |>
+  filter(as.character(reference_coverage_val) == "0.95") |>
   group_by(Assembler) |> 
   mutate(Sensitivity = ifelse(rstatix::is_outlier(Sensitivity), NA, Sensitivity)) |>
   mutate(Precision = ifelse(rstatix::is_outlier(Precision), NA, Precision)) |>
@@ -189,12 +200,12 @@ metricsdf |>
   mutate(facet = "A) Benchmark metrics") |>
   ggplot(aes(x = Sensitivity, y = Precision)) +  
   facet_grid(~ facet) +
-  geom_segment(data = line_data, aes(xend=Sensitivity, yend=0),  
-    color = "gray40", linetype = "dashed", linewidth = 0.5) +
-  geom_segment(data = line_data, aes(xend=0,  yend=Precision),  
-    color = "gray40", linetype = "dashed", linewidth = 0.5) +
-  geom_text(data = line_data, aes(x = Sensitivity, y = 0, label = label),  
-    hjust = -0.5, vjust = 1.5,color = "gray50", angle = 90, size = 3) +
+  # geom_segment(data = line_data, aes(xend=Sensitivity, yend=0),  
+  #   color = "gray40", linetype = "dashed", linewidth = 0.5) +
+  # geom_segment(data = line_data, aes(xend=0,  yend=Precision),  
+  #   color = "gray40", linetype = "dashed", linewidth = 0.5) +
+  # geom_text(data = line_data, aes(x = Sensitivity, y = 0, label = label),  
+  #   hjust = -0.5, vjust = 1.5,color = "gray50", angle = 90, size = 3) +
   geom_point(aes(color = Assembler), alpha = 0.5) +
   scale_y_continuous(limits = c(0,1)) + scale_x_continuous(limits = c(0,1)) +
   scale_color_manual("", values = scale_col) +
@@ -240,7 +251,7 @@ p
 
 
 
-p2 <- metricsdf |> filter(reference_coverage_val == 0.95) |> 
+p2 <- metricsdf |> filter(as.character(reference_coverage_val) == "0.95") |> 
   group_by(Assembler) |> 
   summarise(sd = sd(Accuracy), x = mean(Accuracy)) |>
   arrange(desc(x)) |>
@@ -252,9 +263,9 @@ p2 <- metricsdf |> filter(reference_coverage_val == 0.95) |>
   ggplot() + 
   facet_grid(~ facet) +
   geom_col(aes(y = Assembler, x = x, fill= Assembler, color = Assembler), width = 0.7) + 
-  geom_text(aes(y = Assembler, x = xlab, label = label), hjust = 0.1, size = 2) +
+  geom_text(aes(y = Assembler, x = xlab, label = label), hjust = 0.1, size = 1.5) +
   geom_errorbar(aes(y = Assembler, x = x, xmin = xmin, xmax = xmax), width = 0.15, alpha = 0.3, color = "gray20") +
-  scale_x_continuous("",limits = c(0,1)) +
+  scale_x_continuous("",limits = c(0,1), breaks = c(0, 0.5, 1)) +
   scale_y_discrete(position = "right")+
   scale_color_manual("", values = scale_col) +
   scale_fill_manual("", values = scale_col) +
@@ -275,11 +286,11 @@ p2 <- metricsdf |> filter(reference_coverage_val == 0.95) |>
 library(patchwork)
 
 
-psave <- p + inset_element(p2, left = 0.6, bottom = 0.3, right = 0.95, top = 0.75, align_to = 'full')
+psave <- p + inset_element(p2, left = 0.7, bottom = 0.3, right = 0.97, top = 0.75, align_to = 'full')
 
 outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
 
-ggsave(psave, filename = 'Assemblers_Precision_Sensitivity.png', 
+ggsave(psave, filename = 'Assemblers_Precision_Sensitivity_95.png', 
        path = outdir, width = 5, height = 5, dpi = 1000, device = png)
 
 
