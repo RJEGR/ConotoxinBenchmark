@@ -33,11 +33,12 @@ my_custom_theme <- function(...) {
     )
 }
 
-# outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
+dir <- "~/Documents/Windows/Documents/ConotoxinBenchmark/INPUTS/"
+outdir <- "~/Documents/GitHub//ConotoxinBenchmark/INPUTS/"
 
-outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS"
 
-file_out <- file.path(outdir, "curated_nuc_conoServerDB.rds")
+
+file_out <- file.path(dir, "curated_nuc_conoServerDB.rds")
 
 data <- read_rds(file_out)
 
@@ -184,9 +185,9 @@ seq_results <- data %>%
 
 
 seq_results %>%
-  write_tsv(file.path(outdir, "1_entropy_sample_size.tsv"))
+  write_csv(file.path(outdir, "1_entropy_sample_size.csv"))
 
-seq_results <- read_tsv(file.path(outdir, "1_entropy_sample_size.tsv"))
+seq_results <- read_csv(file.path(outdir, "1_entropy_sample_size.csv"))
 
 discrete_scale <- seq_results %>% distinct(window) %>% pull()
 

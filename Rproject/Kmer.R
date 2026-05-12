@@ -152,18 +152,15 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
 
 outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
 
-f <- list.files(path = outdir, pattern = "curated_nuc_conoServerDB.rds", full.names = T)
-
-conoServerDB <- read_rds(f) %>% dplyr::rename("hits" = "entry_id")
-
-dir <- "/Users/cigom/Documents/GitHub/ConotoxinBenchmark/3_kmer_dir/"
+dir <- "/Users/rjegr/Documents/GitHub/ConotoxinBenchmark/3_kmer_dir"
 
 str(file_list <- list.files(path = dir, pattern = "contigs.csv", recursive = T, full.names = TRUE))
-
 
 transratedf <- lapply(file_list, read_transrate_scores)
 
 transratedf <- do.call(rbind,transratedf)
+
+# transratedf |> write_tsv(file = file.path(outdir, "transratedf_kmer.tsv"))
 
 transratedf %>%
   group_by(vfold_set, kmer) %>%
@@ -261,7 +258,7 @@ metricsdf %>%
   stat_summary(fun = "mean", geom = "point")
 
 
-write_tsv(metricsdf, file = file.path(outdir, "metrics_kmer.tsv"))
+write_csv(metricsdf, file = file.path(outdir, "metricsdf_kmer.csv"))
 
 quit()
 

@@ -15,7 +15,7 @@ options(stringsAsFactors = FALSE, readr.show_col_types = FALSE)
 
 library(tidyverse)
 
-extrafont::loadfonts(device = "win")
+# extrafont::loadfonts(device = "win")
 
 
 my_custom_theme <- function(base_size = 14, legend_pos = "top", ...) {
@@ -171,11 +171,11 @@ calculate_metrics <- function(df, reference_coverage_val = 1) {
 
 # outdir <- "C://Users//cinai/OneDrive/Documentos/GitHub/ConotoxinBenchmark/INPUTS"
 
-outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
+# outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/"
 
-f <- list.files(path = outdir, pattern = "curated_nuc_conoServerDB.rds", full.names = T)
+# f <- list.files(path = outdir, pattern = "curated_nuc_conoServerDB.rds", full.names = T)
 
-conoServerDB <- read_rds(f) %>% dplyr::rename("hits" = "entry_id")
+# conoServerDB <- read_rds(f) %>% dplyr::rename("hits" = "entry_id")
 
 
 
@@ -194,6 +194,7 @@ read_files <- function(dir, Assembly = NULL) {
     mutate(sampling_set = as.double(sampling_set)) %>%
     mutate(Assembly = Assembly)
 }
+
 
 dir <- "/Users/rjegr/Documents/GitHub/ConotoxinBenchmark/2_subsampling_dir"
 
@@ -216,23 +217,23 @@ transratedf %>%
 # calculate_metrics(transratedf, reference_coverage_val = 0.95) %>%
 #   write_tsv(file = file.path(dir, "subsampling_benchmark.tsv"))
 
-# metricsdf <- transratedf %>% 
-#   filter(length>=200) %>%
-#   group_by(vfold_set, sampling_set, Assembly) %>%
-#   calculate_metrics(reference_coverage_val = 0.95) %>% 
-#   mutate(
-#     Ratio = TP/FP,
-#     # Tell us what percentage of positive classes were correctly identified
-#     Accuracy = TP / (TP + FN + FP),
-#     Precision = TP /(TP + FP),
-#     Sensitivity = TP /(TP + FN),
-#     Fscore = 2 * (TP) / (2 * (TP) + FP + FN), 
-#   ) 
+metricsdf <- transratedf %>%
+  filter(length>=200) %>%
+  group_by(vfold_set, sampling_set, Assembly) %>%
+  calculate_metrics(reference_coverage_val = 0.95) %>%
+  mutate(
+    Ratio = TP/FP,
+    # Tell us what percentage of positive classes were correctly identified
+    Accuracy = TP / (TP + FN + FP),
+    Precision = TP /(TP + FP),
+    Sensitivity = TP /(TP + FN),
+    Fscore = 2 * (TP) / (2 * (TP) + FP + FN),
+  )
 
-# metricsdf %>% write_tsv(file.path(outdir, "Sumbsampling_accuracy.tsv"))
+metricsdf %>% write_csv(file.path(outdir, "metricsdf_subsampling.csv"))
 
 
-# metricsdf <- read_tsv(file.path(outdir, "Sumbsampling_accuracy.tsv"))
+# metricsdf <- read_csv(file.path(outdir, "metricsdf_subsampling.csv"))
 
 # (Quantitative): Proxy 1
 
@@ -279,10 +280,10 @@ p2 <- DataViz %>%
   scale_color_manual("",values = scale_col ) +
   scale_fill_manual("",values = scale_fill)
 
-# p2
+p2
 
 ggsave(p2,
-    filename = 'Subsampling_boxplot_assemblers.png',
+    filename = '2_Subsampling.png',
     path = outdir, width = 10, height = 3.7, dpi = 1000, device = png)
 
   
@@ -328,15 +329,15 @@ p1 <- metricsdf %>%
   pivot_longer(cols = cols_to, values_to = "y", names_to = "facet") %>%
   dplyr::mutate(facet = dplyr::recode_factor(facet, !!!recode_to)) %>%
   drop_na() %>%
-  mutate(Assembly = ifelse(Assembly %in% "Spades","A) Spades", "B) Trinity")) %>%
-  ggplot(aes(y = y, x = as.factor(sampling_set))) +
-  facet_grid(facet ~Assembly, scales ="free", switch = "y") +
+  # mutate(Assembly = ifelse(Assembly %in% "Spades","A) Spades", "B) Trinity")) %>%
+  ggplot(aes(y = y, x = as.factor(sampling_set), color = Assembly, group = Assembly)) +
+  facet_grid(facet ~., scales ="free", switch = "y") +
   # geom_jitter(position = position_jitter(0.1), shape = 1) +
-  stat_summary(fun = "mean", geom = "line", aes(group = 1), color="grey20") +
+  stat_summary(fun = "mean", geom = "line") +
   # stat_summary(fun = "mean", geom = "point", aes(group = 1), color="gray70") + # , color="blue"
-  stat_summary(fun.data=mean_se, geom="pointrange", color="grey20", shape = 1) +
+  stat_summary(fun.data=mean_se, geom="pointrange", shape = 1) +
   # ylim(0,1) +
-  labs(x = "Sample size (Proportion of the sample)", y = "", caption = "Subsampling.R") +
+  labs(x = "Sample size (Proportion of the sample)", y = "", caption = "Subsampling.R", color = "") +
   # ylim(0,NA) +
   my_custom_theme()
 
@@ -369,8 +370,8 @@ p1
 #                   axis.text.y = element_blank(), axis.title.y = element_blank())  
 
 
-ggsave(p1, filename = 'Subsampling.png', 
-       path = outdir, width = 5.5, height = 5, dpi = 1000, device = png)
+ggsave(p1, filename = '1_Subsampling.png', 
+       path = outdir, width = 10, height = 10, dpi = 1000, device = png)
 
 
 

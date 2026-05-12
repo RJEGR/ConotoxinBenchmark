@@ -512,15 +512,17 @@ pattern <- "1.blast" # this output is using contig assembled as query and refere
 
 str(file_list <- list.files(path = dir, pattern = pattern, recursive = T, full.names = TRUE))
 
-file_list <- file_list[!grepl("MERGEPIPE|PLASS", file_list)] # Huge sizes because many contigs in PLASS
+# file_list <- file_list[!grepl("MERGEPIPE|PLASS", file_list)] # Huge sizes because many contigs in PLASS
 
-# file_list <- file_list[grepl("PLASS", file_list)] # Huge sizes because many contigs in PLASS
+file_list <- file_list[grepl("PLASS", file_list)] # Huge sizes because many contigs in PLASS
 
-outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/BLAST_based_annotation_v2_dir/" # PLASS_dir
+outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/BLAST_based_annotation_v2_dir/PLASS_dir" # PLASS_dir
 
 dir.create(outdir, recursive = T)
 
-splits <-  unique(sapply(strsplit(basename(file_list), "_"), `[`, 1))
+annotation_results <- annotate_blast_files(file_list[2], parallel = F, verbose = T)
+
+
 
 process_split_memory_efficient <- function(split_name) {
   cat("Processing", split_name, "...\n")
@@ -528,7 +530,7 @@ process_split_memory_efficient <- function(split_name) {
   files <- file_list[grepl(split_name, basename(file_list))]
   
   # Process with memory monitoring
-  annotation_results <- annotate_blast_files(files, parallel = TRUE)
+  annotation_results <- annotate_blast_files(files, parallel = FALSE, verbose = T)
   
   filename <- paste0("BLAST_based_overlaps", split_name, ".rds")
   
@@ -547,7 +549,10 @@ process_split_memory_efficient <- function(split_name) {
 
 # Apply function without storing intermediate results
 
-for (i in splits) {
+splits <-  unique(sapply(strsplit(basename(file_list), "_"), `[`, 1))
+
+
+for (i in splits[c(2:3)]) {
   process_split_memory_efficient(i)
 }
 

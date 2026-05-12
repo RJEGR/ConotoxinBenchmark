@@ -7,7 +7,9 @@
 #SBATCH -o out.%J
 #SBATCH -e err.%J
 
-./Assemblers.sh -s all -c run.config
+./Assemblers_v2.sh -s all -c run.config
+
+exit
 
 find "boostrap_dir_${i}/*_FASTA_DIR" -name "*.fa" | while read -r contig_file; do
 
