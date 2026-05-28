@@ -173,12 +173,16 @@ df_raw <- fread(RUTA_CSV, na.strings = c("", "NA", "N/A", "NaN"))
 
 
 df_raw |>
-  ggplot(aes(x = cpg_count, y = final_annotation, fill=final_annotation)) + # model: p_good+score * reference_coverage
+  drop_na(p_good) |>
+  mutate(final_annotation = ifelse(is.na(final_annotation), "False Positive", final_annotation)) |>
+  ggplot(aes(x = p_good, y = final_annotation, fill=final_annotation)) + # model: p_good+score * reference_coverage
   # facet_wrap(~ Method) +ggplot2::stat_ecdf()
   ggridges::geom_density_ridges_gradient(
     jittered_points = T,
     position = ggridges::position_points_jitter(width = 0.05, height = 0),
-    point_shape = '|', point_size = 0.5, point_alpha = 1, alpha = 0.7)
+    point_shape = '|', point_size = 0.5, point_alpha = 1, alpha = 0.7) +
+  scale_fill_manual(values = PALETAS_PREDEFINIDAS$final_annotation) +
+  theme_loso()
 
 # ── 1.1  Definir columnas por tipo ───────────────────────────────────────────
 COLS_NUMERIC <- c(

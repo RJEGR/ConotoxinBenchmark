@@ -44,15 +44,15 @@ recode_to <- structure(c("StringTie","rnaSPAdes", "Trinity", "IDBA", "MEGAHIT", 
 
 recode_col <- c("full","multi", "fragment","chimera", "NaN")
 
-recode_col <- structure(c("Full","Multi", "Fragment", "Chimera", "Unannotated"), names = recode_col)
+recode_col <- structure(c("Full","Multi", "Fragment", "Chimera", "No-hit"), names = recode_col)
 
 outName <- "Nucleotide_1" 
 
 f <- file.path(dir, paste0(outName, "_ConoSorter.rds"))
 
-DB1 <- read_rds(f) |> 
-  mutate(Superfamily = gsub(" ", "", Superfamily)) |>
-  dplyr::rename("gs_conoSorter" = Superfamily) 
+# DB1 <- read_rds(f) |> 
+#   mutate(Superfamily = gsub(" ", "", Superfamily)) |>
+#   dplyr::rename("gs_conoSorter" = Superfamily) 
 
 
 outName <- "protein_1" 
@@ -65,7 +65,7 @@ DB2 <- read_rds(f) |>
 
 
 DB2 |> count(protein_id, sort = T)
-DB1 |> count(protein_id, sort = T)
+# DB1 |> count(protein_id, sort = T)
 
 # 
 # DB2 |> ungroup() |> count(Score_sf, sort = T)
@@ -73,13 +73,14 @@ DB1 |> count(protein_id, sort = T)
 
 dir <- "/Users/rjegr/Documents/GitHub/ConotoxinBenchmark/INPUTS/BLAST_based_annotation_v2_dir/"
 
-f <- list.files(dir, full.names = T, pattern = ".rds")
+f <- list.files(dir, full.names = T, pattern = ".rds", recursive = T)
 
 annotation_results <- do.call(rbind, lapply(f, read_rds)) |>
   mutate(file_name = gsub("_into_Fold[0-9]+[0-9]+.[1|2].blast", "", file_name)) |> 
   dplyr::rename("protein_id" = qseqid, "Method" = file_name)
 
 annotation_results |> count(final_annotation)
+annotation_results |> count(Method)
 
 # Total number of assembled sequences
 
@@ -102,8 +103,9 @@ annotation_results <- read_tsv( file.path(outdir, "benchmark_assemblers.tsv")) |
   dplyr::rename("protein_id" = contig_name) |> 
   mutate(Method = paste(vfold_set, "200x_PE_samples", Assembler, sep = "_")) |>
   # distinct(protein_id, Method, reference_coverage, hits) |>
-  right_join(conoServerDB, by = "hits") |>
-  right_join(annotation_results, by = c("protein_id", "Method"))
+  left_join(conoServerDB, by = "hits") |>
+  left_join(annotation_results, by = c("protein_id", "Method")) #|>
+  # mutate(final_annotation = ifelse(is.na(final_annotation), "No-hit", final_annotation))
 
 annotation_results |> 
   count(gs_conoServer, final_annotation, sort = T) |>
@@ -119,13 +121,13 @@ annotation_results |>
 
 any(annotation_results$Method %in% DB1$Method)
 
-DB1 <- DB1 |> ungroup() |> 
-  # Use right Join to count the number of full contigs
-  right_join(annotation_results, by = c("protein_id", "Method"), relationship = "many-to-many") |> 
-  mutate(sf_evidence = ifelse(gs_conoSorter == gs_conoServer, "Concordance", "Ambiguous")) |>
-  count(Method, Region, tab, sf_evidence, final_annotation) |> mutate(Mode = "Nucleotide")
+# DB1 <- DB1 |> ungroup() |> 
+#   # Use right Join to count the number of full contigs
+#   right_join(annotation_results, by = c("protein_id", "Method"), relationship = "many-to-many") |> 
+#   mutate(sf_evidence = ifelse(gs_conoSorter == gs_conoServer, "Concordance", "Ambiguous")) |>
+#   count(Method, Region, tab, sf_evidence, final_annotation) |> mutate(Mode = "Nucleotide")
 
-DB1 |>  group_by(final_annotation, sf_evidence) |> tally(n, sort = T)
+# DB1 |>  group_by(final_annotation, sf_evidence) |> tally(n, sort = T)
 
 # 
 # 
@@ -138,26 +140,14 @@ DB2 <- DB2 |> ungroup() |>
   count(Method, Region, tab, sf_evidence, final_annotation) |> mutate(Mode = "Protein")
 
 
+# DB <- rbind(DB1, DB2) |> 
+#   mutate(vfold_set = sapply(strsplit(Method, "_"), `[`, 1)) |> 
+#   mutate(Method = sapply(strsplit(Method, "_"), `[`, 5))
 
-# DB2 <- DB2 |> ungroup() |> distinct(Method, protein_id, Region, tab) |> count(Method, Region, tab) |> mutate(Mode = "Protein")
-
-DB <- rbind(DB1, DB2) |> 
-  mutate(vfold_set = sapply(strsplit(Method, "_"), `[`, 1)) |> 
-  mutate(Method = sapply(strsplit(Method, "_"), `[`, 5))
-
-# .DB <- DB
-
-which_cols <- names(DB)[!names(DB) %in% c("vfold_set", "n")]
-
-stats_df <- DB |> 
-  group_by(across(all_of(which_cols))) |> 
-  rstatix::get_summary_stats(type = "mean_se") |>
-  mutate_if(is.numeric, ~replace_na(., 0)) 
+DB <- DB2
 
 
-stats_df
-
-rm(DB1,DB2);gc() #annotation_results
+rm(DB2);gc() #annotation_results
 
 # library(ggdist)
 
@@ -230,7 +220,7 @@ DB <- DB |>
   dplyr::mutate(Region = dplyr::recode_factor(Region, !!!recode_regions)) |>
   # mutate(final_annotation
   #        = ifelse(final_annotation %in% c("full", "multi"), "Full and Multi", final_annotation)) |>
-  group_by(Region, final_annotation, Mode, Method, vfold_set) %>%   
+  group_by(Region, final_annotation, Mode, Method) %>%   
   tally(n, sort = T) |>
   group_by(Region, final_annotation, Mode, Method) |> 
   rstatix::get_summary_stats(type = "mean_se") |>
@@ -255,7 +245,7 @@ DataViz <- annotation_results |>
   
 
 text_annot <- Total_contigs_assembled |>
-  filter(!Assembler %in% c("PLASS", "TRANSLIG")) |>
+  filter(!Assembler %in% c("TRANSLIG")) |>
   dplyr::rename("Method" = Assembler) |> mutate(final_annotation = "full") |>
   dplyr::mutate(Method = dplyr::recode_factor(Method, !!!recode_to)) |>
   dplyr::mutate(final_annotation = dplyr::recode_factor(final_annotation, !!!recode_col)) |>
@@ -288,6 +278,7 @@ colors_ <- c("#357EBD", "#486983", "#FEA31A", "#F1E688", "gray")
 
 
 p1 <- DataViz |>
+  filter(!Method %in% c("TransLiG")) |>
   mutate(facet = "A) Blast based annotation") |>
   ggplot(aes(y = Method, x = n, fill = final_annotation)) +
   geom_col(position = position_fill(reverse = T)) +

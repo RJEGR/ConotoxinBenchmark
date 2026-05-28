@@ -7,7 +7,7 @@
 #SBATCH -o out.%J
 #SBATCH -e err.%J
 
-./Assemblers_v2.sh -s all -c run.config
+./Assemblers.sh -s all -c run.config
 
 exit
 

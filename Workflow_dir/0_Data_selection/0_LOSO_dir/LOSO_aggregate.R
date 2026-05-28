@@ -27,7 +27,7 @@
 
 # dir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/vfolds_loso_resampling_dir/"
 
-# setwd(dir)
+setwd(dir)
 
 suppressPackageStartupMessages({
   library(tidyverse)
@@ -49,17 +49,27 @@ stopifnot(!is.null(opt$loso_dir), !is.null(opt$sim_dir))
 
 dir.create(opt$out_dir, recursive = TRUE, showWarnings = FALSE)
 
-theme_loso <- function() {
-  theme_bw(base_size = 12) +
-    theme(legend.position = "top",
-          panel.grid.minor = element_blank(),
-          strip.background = element_rect(fill = "white"))
+
+theme_loso <- function(base_size = 10, legend_pos = "top", ...) {
+  theme_bw(base_family = "GillSans", base_size = base_size) +
+    theme(legend.position = legend_pos,
+          strip.placement = "outside", 
+          strip.background = element_rect(fill = 'gray90', color = 'white'),
+          strip.text = element_text(angle = 0, size = base_size, hjust = 0), 
+          axis.text = element_text(size = rel(0.7), color = "black"),
+          panel.grid.minor.y = element_blank(),
+          panel.grid.major.y = element_blank(),
+          panel.grid.minor.x = element_blank(),
+          panel.grid.major.x = element_blank(),
+          ...
+    )
 }
+
 
 # ---- Load LOSO registry + simulation metadata ----
 
-# opt$loso_dir <- dir
-# opt$sim_dir <- file.path(dir, "daf3bd43f024d30577d90973fa1544aa_loso_dir")
+opt$loso_dir <- dir
+opt$sim_dir <- file.path(dir, "daf3bd43f024d30577d90973fa1544aa_loso_dir")
 
 manifest <- read_tsv(file.path(opt$loso_dir, "LOSO_manifest.tsv"))
 meta     <- read_tsv(file.path(opt$sim_dir,  "LOSO_metadata.tsv"))
@@ -183,6 +193,7 @@ ood_summary <- per_sf %>%
     n_superfamilies    = n(),
     .groups = "drop"
   )
+
 write_tsv(ood_summary, file.path(opt$out_dir, "LOSO_in_vs_out_distribution.tsv"))
 
 # ---- Plots ----
@@ -205,18 +216,50 @@ ggsave(file.path(opt$out_dir, "LOSO_sensitivity_by_superfamily.png"),
        p1, width = 10, height = 5.5, dpi = 300)
 
 # Precision vs sensitivity (proxy: ref coverage)
+
+recode_to <- c("STRINGTIE","SPADES", "TRINITY","IDBA", "MEGAHIT", "RNABLOOM" ,"BRIDGER", "TRANSABBYS", "BINPACKER","SOAPDENOVO" ,"CSTONE", "TRANSLIG", "Baseline", "PLASS")
+
+recode_to <- structure(c("StringTie","rnaSPAdes", "Trinity", "IDBA", "MEGAHIT", "RNA-Bloom","BRIDGER","Trans-ABySS", "BinPacker", "SOAP-denovo", "Cstone", "TransLiG", "Baseline", "PinguiN (nuclassemble)"), names = recode_to)
+
+n <- length(recode_to)
+
+scale_col <- c(ggsci::pal_startrek()(7), ggsci::pal_cosmic()(n-7))
+
+scale_col <- structure(scale_col, names = sort(recode_to))
+
+
+
 p2 <- per_sf %>%
+  dplyr::mutate(tool = dplyr::recode_factor(tool, !!!recode_to)) |>
   ggplot(aes(x = mean_ref_cov, y = mean_precision, color = tool)) +
+  # facet_grid(~tool) +
   geom_point(alpha = 0.8, size = 2.5) +
-  geom_text(aes(label = superfamily), size = 2.5, nudge_y = 0.02, show.legend = FALSE) +
+  scale_color_manual("", values = scale_col) +
+  # scale_fill_manual("", values = scale_col) +
+  # geom_text(aes(label = superfamily), size = 2.5, nudge_y = 0.02, show.legend = FALSE) +
+  # ggrepel::geom_text_repel(aes(label = superfamily), 
+  #                          max.overlaps = Inf,
+  #                          # nudge_x      = -0.05,
+  #                          nudge_y = 0.02,
+  #                          # xlim = c(1.1, 5),
+  #                          # ylim = c(0.80, 2),
+  #                          # direction    = "y",
+  #                          # hjust        = -0.5,
+  #                          # vjust = -1, 
+  #                          min.segment.length = 0,
+  #                          segment.curvature = 0.1, 
+  #                          segment.size = 0,
+  #                          size = 3, family = "GillSans") +
   labs(x = "Mean reference coverage (sensitivity proxy)",
        y = "Precision",
        title = "LOSO precision vs sensitivity, per superfamily",
        color = "Assembler") +
-  theme_loso()
+  theme_loso(legend_pos = "top")
+
+p2
 
 ggsave(file.path(opt$out_dir, "LOSO_precision_vs_sensitivity.png"),
-       p2, width = 7.5, height = 6, dpi = 300)
+       p2, width = 12, height = 6, dpi = 300)
 
 # ---- Leakage check summary (if present) ----
 leak_path <- file.path(opt$sim_dir, "leakage_check", "leakage_summary.tsv")

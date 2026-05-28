@@ -520,31 +520,52 @@ outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/BLAST_based_annotation_v
 
 dir.create(outdir, recursive = T)
 
-annotation_results <- annotate_blast_files(file_list[2], parallel = F, verbose = T)
+list.files(outdir)
 
+# f <- file_list[3]
+# 
+# annotation_results <- annotate_blast_files(f, parallel = F, verbose = T)
+# 
+# split_name <-  unique(sapply(strsplit(basename(f), "_"), `[`, 1))
+# 
+# filename <- paste0("BLAST_based_overlaps", split_name, ".rds")
+# 
+# filename <- file.path(outdir, filename)
+# 
+# readr::write_rds(annotation_results, file = filename)
 
 
 process_split_memory_efficient <- function(split_name) {
   cat("Processing", split_name, "...\n")
   
-  files <- file_list[grepl(split_name, basename(file_list))]
+  check_out <- any(grepl(split_name, list.files(outdir)))
   
-  # Process with memory monitoring
-  annotation_results <- annotate_blast_files(files, parallel = FALSE, verbose = T)
+  if(!check_out == 1) {
+    
+    files <- file_list[grepl(split_name, basename(file_list))]
+    
+    # Process with memory monitoring
+    annotation_results <- annotate_blast_files(files, parallel = FALSE, verbose = T)
+    
+    filename <- paste0("BLAST_based_overlaps", split_name, ".rds")
+    
+    filename <- file.path(outdir, filename)
+    
+    readr::write_rds(annotation_results, file = filename)
+    
+    cat("Saved:", filename, "\n")
+    
+    # Cleanup
+    rm(annotation_results)
+    
+    
+    gc()
+    
+  } else
+    
+    cat("Data:", filename, " is actually found ... omiting\n")
   
-  filename <- paste0("BLAST_based_overlaps", split_name, ".rds")
   
-  filename <- file.path(outdir, filename)
-  
-  readr::write_rds(annotation_results, file = filename)
-  
-  cat("Saved:", filename, "\n")
-  
-  # Cleanup
-  rm(annotation_results)
-  
-  
-  gc()
 }
 
 # Apply function without storing intermediate results
@@ -552,7 +573,7 @@ process_split_memory_efficient <- function(split_name) {
 splits <-  unique(sapply(strsplit(basename(file_list), "_"), `[`, 1))
 
 
-for (i in splits[c(2:3)]) {
+for (i in splits[c(1:3)]) {
   process_split_memory_efficient(i)
 }
 

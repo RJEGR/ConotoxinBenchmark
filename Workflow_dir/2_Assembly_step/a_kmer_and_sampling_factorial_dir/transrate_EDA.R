@@ -27,6 +27,15 @@
 #       --rcov   0.95
 # =============================================================================
 
+rm(list = ls())
+
+if(!is.null(dev.list())) dev.off()
+
+
+dir <- "~/Documents/GitHub/ConotoxinBenchmark/3_kmer_dir/transrate_contigs_dir/"
+
+setwd(dir)
+
 suppressPackageStartupMessages({
   library(tidyverse)
   library(optparse)
@@ -41,12 +50,14 @@ option_list <- list(
                       Used to count InputNsequences (length >= 200) for FN."),
   make_option(c("-o", "--out"),    type = "character", default = "EDA_out",
               help = "Output directory for tables and plots [default %default]"),
-  make_option(c("-c", "--rcov"),   type = "double", default = 0.95,
+  make_option(c("-c", "--rcov"),   type = "double", default = 0.9,
               help = "reference_coverage cutoff for TP [default %default]"),
   make_option(c("-l", "--minlen"), type = "integer", default = 200,
               help = "Minimum contig length to keep [default %default]")
 )
+
 opt <- parse_args(OptionParser(option_list = option_list))
+
 dir.create(opt$out, showWarnings = FALSE, recursive = TRUE)
 
 # =============================================================================
@@ -60,10 +71,12 @@ dir.create(opt$out, showWarnings = FALSE, recursive = TRUE)
 parse_run_dir <- function(run_dir) {
   # Strip "_dir" suffix if present
   base <- sub("_dir$", "", run_dir)
-
+  
   # ---- (a) new unified scheme:  <factor>_<assembler>_k<KMER>_p<PROP>
+  # The factor may itself contain underscores (e.g. "Fold01_200x_PE_samples"),
+  # so we use a greedy `.+` for it; the `_k<val>_p<val>$` tail anchors the match.
   m <- str_match(base,
-        "^([^_]+)_([A-Za-z]+)_k([^_]+)_p([^_]+)$")
+                 "^(.+)_([A-Za-z]+)_k([^_]+)_p([^_]+)$")
   if (!is.na(m[1, 1])) {
     return(tibble(
       vfold_set    = m[1, 2],
@@ -72,13 +85,13 @@ parse_run_dir <- function(run_dir) {
       sampling_set = ifelse(m[1, 5] == "NA", NA_real_, as.numeric(m[1, 5]))
     ))
   }
-
+  
   # ---- (b) legacy scheme: split on '_'; position 1 is factor, position 5 is value
   parts <- strsplit(base, "_")[[1]]
   factor_id <- parts[1]
   val <- if (length(parts) >= 5) parts[5] else NA
   is_numeric_val <- suppressWarnings(!is.na(as.numeric(val)))
-
+  
   if (is_numeric_val && as.numeric(val) <= 1) {
     # looks like a subsampling proportion (0,1]
     tibble(vfold_set = factor_id, Assembly = NA_character_,
@@ -90,6 +103,7 @@ parse_run_dir <- function(run_dir) {
   }
 }
 
+
 read_transrate_scores <- function(file_path, root) {
   rel <- sub(paste0("^", normalizePath(root, mustWork = FALSE), "/"), "",
              normalizePath(file_path, mustWork = FALSE))
@@ -99,6 +113,7 @@ read_transrate_scores <- function(file_path, root) {
   above <- basename(dirname(dirname(dirname(file_path))))
 
   meta <- parse_run_dir(run_dir)
+  
   # If legacy naming didn't yield an Assembly, infer it from the parent dir
   if (is.na(meta$Assembly) && length(above) == 1 && nchar(above) > 0) {
     meta$Assembly <- sub("_dir$", "", above)
@@ -110,12 +125,16 @@ read_transrate_scores <- function(file_path, root) {
 }
 
 message("Scanning ", opt$input, " for contigs.csv ...")
+
 file_list <- list.files(opt$input, pattern = "^contigs\\.csv$",
                         recursive = TRUE, full.names = TRUE)
+
 if (length(file_list) == 0) stop("No contigs.csv found under ", opt$input)
 message("Found ", length(file_list), " contigs.csv files")
 
+
 transratedf <- map_dfr(file_list, read_transrate_scores, root = opt$input)
+
 message("Combined rows: ", nrow(transratedf))
 
 # =============================================================================
@@ -148,6 +167,8 @@ count_reference_sequences <- function(refdir, minlen = 200) {
   names(out) <- sub("\\.fa(sta)?$", "", basename(fastas))
   out
 }
+
+opt$refdir <- outdir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/vfolds_resampling_dir/"
 
 InputNsequences <- count_reference_sequences(opt$refdir, opt$minlen)
 
@@ -193,11 +214,16 @@ has_kmer    <- any(!is.na(transratedf$kmer))
 has_sampset <- any(!is.na(transratedf$sampling_set))
 
 group_vars <- c("vfold_set", "Assembly")
+
 if (has_kmer)    group_vars <- c(group_vars, "kmer")
 if (has_sampset) group_vars <- c(group_vars, "sampling_set")
+
 message("Grouping by: ", paste(group_vars, collapse = ", "))
 
+
+
 metricsdf <- transratedf %>%
+  mutate(vfold_set =  sub("_200x_PE_samples$", "", vfold_set)) |>
   filter(length >= opt$minlen) %>%
   group_split(across(all_of(group_vars))) %>%
   map_dfr(function(g) {
@@ -209,86 +235,9 @@ metricsdf <- transratedf %>%
   })
 
 out_tsv <- file.path(opt$out, "benchmark_metrics.tsv")
+
 write_tsv(metricsdf, out_tsv)
+
 message("Wrote ", out_tsv)
 
-# =============================================================================
-# 4. Quick descriptive plots
-# =============================================================================
 
-my_theme <- function(base_size = 13) {
-  theme_bw(base_size = base_size) +
-    theme(legend.position = "top",
-          strip.background = element_rect(fill = "gray90", color = "white"),
-          panel.grid.minor = element_blank())
-}
-
-cols_to <- c("Precision", "Sensitivity", "Accuracy", "Fscore")
-recode_to <- c("A) Precision", "B) Sensitivity", "C) Accuracy", "D) F-score")
-names(recode_to) <- cols_to
-
-long_metrics <- metricsdf %>%
-  pivot_longer(any_of(cols_to), names_to = "metric", values_to = "y") %>%
-  mutate(metric = recode_factor(metric, !!!recode_to))
-
-# Choose the x-axis: kmer if we swept it, otherwise sampling_set
-xvar <- if (has_kmer) "kmer" else "sampling_set"
-color_var <- if (length(unique(metricsdf$Assembly)) > 1) "Assembly" else NULL
-
-p_main <- long_metrics %>%
-  ggplot(aes(x = .data[[xvar]], y = y,
-             group = if (!is.null(color_var)) .data[[color_var]] else 1,
-             color = if (!is.null(color_var)) .data[[color_var]] else NULL)) +
-  stat_summary(fun = mean, geom = "line") +
-  stat_summary(fun.data = mean_se, geom = "pointrange", shape = 1) +
-  facet_wrap(~metric, scales = "free_y") +
-  labs(x = xvar, y = NULL,
-       caption = sprintf("transrate_EDA.R | rcov >= %s | min length %d",
-                         opt$rcov, opt$minlen)) +
-  my_theme()
-
-ggsave(file.path(opt$out, "benchmark_metrics.png"),
-       p_main, width = 8, height = 6, dpi = 300)
-message("Wrote ", file.path(opt$out, "benchmark_metrics.png"))
-
-# Precision-vs-Sensitivity scatter
-p_scatter <- metricsdf %>%
-  ggplot(aes(x = Sensitivity, y = Precision,
-             color = if (has_kmer) factor(kmer) else factor(sampling_set))) +
-  geom_point(alpha = 0.7) +
-  geom_smooth(method = "lm", se = FALSE, linewidth = 0.4,
-              aes(group = 1), color = "black") +
-  labs(color = if (has_kmer) "kmer" else "sampling_set",
-       caption = "transrate_EDA.R") +
-  my_theme()
-
-ggsave(file.path(opt$out, "precision_vs_sensitivity.png"),
-       p_scatter, width = 6, height = 5, dpi = 300)
-
-# Stratified contig-quality counts (mimicking the "% alignment" plot)
-align_strata <- transratedf %>%
-  mutate(strat = case_when(
-    reference_coverage == 1   ~ "100% alignment",
-    reference_coverage >= 0.95 ~ ">= 95% alignment",
-    reference_coverage >= 0.90 ~ ">= 90% alignment",
-    reference_coverage >= 0.80 ~ ">= 80% alignment",
-    TRUE                      ~ "< 80% alignment"
-  )) %>%
-  count(!!!syms(group_vars), strat) %>%
-  mutate(strat = factor(strat, levels = c(
-    "< 80% alignment", ">= 80% alignment", ">= 90% alignment",
-    ">= 95% alignment", "100% alignment")))
-
-p_strata <- align_strata %>%
-  ggplot(aes(x = .data[[xvar]], y = n, color = strat, group = strat)) +
-  stat_summary(fun = mean, geom = "line") +
-  stat_summary(fun.data = mean_se, geom = "pointrange", shape = 1, size = 0.3) +
-  { if (length(unique(metricsdf$Assembly)) > 1) facet_wrap(~Assembly) else NULL } +
-  labs(y = "Number of assembled contigs", color = NULL,
-       caption = "transrate_EDA.R") +
-  my_theme()
-
-ggsave(file.path(opt$out, "alignment_strata.png"),
-       p_strata, width = 9, height = 4, dpi = 300)
-
-message("\nDone. Outputs in ", normalizePath(opt$out))
