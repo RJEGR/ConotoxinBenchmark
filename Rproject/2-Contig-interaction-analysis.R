@@ -115,11 +115,12 @@ PCA_STRATEGY <- "B"
 # ── Paletas predefinidas por variable (auto-generadas si falta una) ──────────
 PALETAS_PREDEFINIDAS <- list(
   final_annotation = c(
-    "full"     = "#10b981",
-    "multi"    = "#00d4ff",
-    "chimera"  = "#ef4444",
-    "error"    = "#f59e0b",
-    "fragment" = "#a78bfa"
+    "Full"     = "#10b981",
+    "Multi"    = "#00d4ff",
+    "Chimera"  = "#ef4444",
+    "Error"    = "#f59e0b",
+    "Fragment" = "#a78bfa",
+    "No-hit" = "#f59e0b"
   ),
   prelim_cat = c(
     "1->1" = "#10b981",
@@ -144,6 +145,11 @@ PALETAS_PREDEFINIDAS <- list(
   )
   # Region, Method, gs_conoSorter, gs_conoServer → auto-generadas con viridis
 )
+
+recode_col <- c("full","multi", "fragment","chimera", "NaN")
+
+recode_col <- structure(c("Full","Multi", "Fragment", "Chimera", "No-hit"), names = recode_col)
+
 
 # MEJORA v2.1: subdirectorio por INTERCEPT_VAR + INTERCEPT_REF para no
 # sobrescribir runs. Cada experimento tendrá su propia carpeta:
@@ -174,15 +180,27 @@ df_raw <- fread(RUTA_CSV, na.strings = c("", "NA", "N/A", "NaN"))
 
 df_raw |>
   drop_na(p_good) |>
-  mutate(final_annotation = ifelse(is.na(final_annotation), "False Positive", final_annotation)) |>
+  mutate(final_annotation = ifelse(is.na(final_annotation), "No-hit", final_annotation)) |>
+  dplyr::mutate(final_annotation = dplyr::recode_factor(final_annotation, !!!recode_col)) |>
   ggplot(aes(x = p_good, y = final_annotation, fill=final_annotation)) + # model: p_good+score * reference_coverage
   # facet_wrap(~ Method) +ggplot2::stat_ecdf()
   ggridges::geom_density_ridges_gradient(
     jittered_points = T,
     position = ggridges::position_points_jitter(width = 0.05, height = 0),
     point_shape = '|', point_size = 0.5, point_alpha = 1, alpha = 0.7) +
-  scale_fill_manual(values = PALETAS_PREDEFINIDAS$final_annotation) +
-  theme_loso()
+  scale_fill_manual(values = PALETAS_PREDEFINIDAS$final_annotation)
+
+df_raw |>
+  drop_na(p_good) |>
+  mutate(final_annotation = ifelse(is.na(final_annotation), "No-hit", final_annotation)) |>
+  dplyr::mutate(final_annotation = dplyr::recode_factor(final_annotation, !!!recode_col)) |>
+  ggplot(aes(x = log10(in_bridges+1), y = final_annotation, fill=final_annotation)) + # model: p_good+score * reference_coverage
+  # facet_wrap(~ Method) +ggplot2::stat_ecdf()
+  ggridges::geom_density_ridges_gradient(
+    jittered_points = T,
+    position = ggridges::position_points_jitter(width = 0.05, height = 0),
+    point_shape = '|', point_size = 0.5, point_alpha = 1, alpha = 0.7) +
+  scale_fill_manual(values = PALETAS_PREDEFINIDAS$final_annotation)
 
 # ── 1.1  Definir columnas por tipo ───────────────────────────────────────────
 COLS_NUMERIC <- c(
@@ -762,6 +780,8 @@ if (INTERCEPT_VAR == "tab") {
 # ── 4.4  Heatmap perfiles de clase (Z-score) ─────────────────────────────────
 cat("  [4.4] Heatmap de perfiles de clase...\n")
 
+COLS_NUM_BASE <- COLS_NUM_BASE %in% 
+
 heatmap_data <- df |>
   select(Intercept, all_of(COLS_NUM_BASE)) |>
   group_by(Intercept) |>
@@ -780,8 +800,10 @@ heatmap_data <- df |>
   ungroup() |>
   filter(!is.na(mediana))   # quitar combinaciones (clase × variable) sin datos
 
-p11_heatmap <- ggplot(heatmap_data,
-                      aes(x = Intercept, y = variable, fill = z_score)) +
+p11_heatmap <- 
+  heatmap_data |>
+  dplyr::mutate(Intercept = dplyr::recode_factor(Intercept, !!!recode_col)) |>
+  ggplot(aes(x = Intercept, y = variable, fill = z_score)) +
   geom_tile(color = "grey20", linewidth = 0.3) +
   geom_text(aes(label = round(mediana, 2)), size = 2.5, color = "white") +
   scale_fill_gradient2(low = "#1e40af", mid = "#0f1117", high = "#dc2626",
@@ -795,8 +817,14 @@ p11_heatmap <- ggplot(heatmap_data,
   theme_minimal(base_size = 11) +
   theme(plot.title = element_text(face = "bold"), axis.text.y = element_text(size = 9))
 
+
 ggsave(file.path(DIR_SALIDA, "4_4_heatmap_perfiles_clase.png"),
-       p11_heatmap, width = 12, height = 10, dpi = 150)
+       p11_heatmap, width = 5, height = 7, dpi = 150)
+
+heatmap_data |>
+  dplyr::mutate(Intercept = dplyr::recode_factor(Intercept, !!!recode_col)) |>
+  write.csv(file.path(DIR_SALIDA, "4_4_heatmap_perfiles_clase.csv"),
+            row.names = FALSE)
 
 
 # ── 4.5  PCA — Estrategia B (DEFAULT, con imputación por mediana) ────────────
