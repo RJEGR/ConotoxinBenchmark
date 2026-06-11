@@ -111,15 +111,8 @@ annotation_results |>
   count(gs_conoServer, final_annotation, sort = T) |>
   pivot_wider(names_from = gs_conoServer, values_from = n)
 
-annotation_results |>
-  ggplot(aes(x = orf_length, y = final_annotation, fill=final_annotation)) +
-  # facet_wrap(~ Method) +ggplot2::stat_ecdf()
-  ggridges::geom_density_ridges_gradient(
-    jittered_points = T,
-    position = ggridges::position_points_jitter(width = 0.05, height = 0),
-    point_shape = '|', point_size = 0.5, point_alpha = 1, alpha = 0.7)
 
-any(annotation_results$Method %in% DB1$Method)
+any(annotation_results$Method %in% DB2$Method)
 
 # DB1 <- DB1 |> ungroup() |> 
 #   # Use right Join to count the number of full contigs
@@ -212,6 +205,26 @@ recode_regions <-structure(
 #   facet_grid(wrap ~ Region  , scales ="free_y", space = "free") +
 #   geom_col(position = position_dodge2())
   
+final_annotation = c(
+  "Full"     = "#10b981",
+  "Multi"    = "#00d4ff",
+  "Chimera"  = "#ef4444",
+  "Error"    = "#f59e0b",
+  "Fragment" = "#a78bfa",
+  "No-hit" = "#f59e0b"
+)
+
+annotation_results |>
+  mutate(final_annotation = replace_na(final_annotation, "NaN")) |>
+  dplyr::mutate(final_annotation = dplyr::recode_factor(final_annotation, !!!recode_col)) |>
+  ggplot(aes(x = max_contigs_per_subject, y = final_annotation, fill=final_annotation)) +
+  # facet_wrap(~ Method) +ggplot2::stat_ecdf()
+  ggridges::geom_density_ridges_gradient(
+    jittered_points = T,
+    position = ggridges::position_points_jitter(width = 0.05, height = 0),
+    point_shape = '|', point_size = 0.5, point_alpha = 1, alpha = 0.7) +
+  scale_fill_manual(values = final_annotation)
+
 # Then
 
 DB <- DB |>
@@ -285,7 +298,7 @@ p1 <- DataViz |>
   facet_grid(~ facet) +
   scale_y_discrete(limits = rev) +
   # ggsci::scale_fill_locuszoom(direction = -1) +
-  scale_fill_manual(values = colors_) +
+  scale_fill_manual(values = final_annotation) + #colors_
   my_custom_theme() +
   theme(axis.ticks = element_blank(), 
         axis.text.x = element_text(size = 7.5),
@@ -389,6 +402,51 @@ ggsave(PSAVE, filename = 'Figure_2.png', path = outdir, width = 7, height = 5, d
 
 
 ggsave(psave, filename = 'ConoSorter_assemblies_supplementary.png', path = outdir, width = 7, height = 12, device = png, dpi = 800)
+
+
+# P3 -----
+f <- "contig-based-data-longer.csv" 
+f <- list.files(path = "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/", pattern = f, full.names = T)
+
+df_raw <- fread(f, na.strings = c("", "NA", "N/A", "NaN"))
+
+df_raw |>
+  drop_na(p_good) |>
+  mutate(final_annotation = ifelse(is.na(final_annotation), "No-hit", final_annotation)) |>
+  dplyr::mutate(final_annotation = dplyr::recode_factor(final_annotation, !!!recode_col)) |>
+  ggplot(aes(x = reference_coverage, y = final_annotation, fill=final_annotation)) + # model: p_good+score * reference_coverage
+  # facet_wrap(~ Method) +ggplot2::stat_ecdf()
+  ggridges::geom_density_ridges_gradient(
+    jittered_points = T,
+    position = ggridges::position_points_jitter(width = 0.05, height = 0),
+    point_shape = '|', point_size = 0.5, point_alpha = 1, alpha = 0.7) +
+  scale_fill_manual(values = final_annotation) +
+  my_custom_theme()
+
+df_raw |>
+  drop_na(p_good) |>
+  filter(Method == "TRINITY") |>
+  mutate(final_annotation = ifelse(is.na(final_annotation), "No-hit", final_annotation)) |>
+  dplyr::mutate(final_annotation = dplyr::recode_factor(final_annotation, !!!recode_col)) |>
+  ggplot(aes(x = p_good, y = final_annotation, fill=final_annotation)) + # model: p_good+score * reference_coverage
+  # facet_wrap(~ Method) +ggplot2::stat_ecdf()
+  ggridges::geom_density_ridges_gradient(
+    jittered_points = T,
+    position = ggridges::position_points_jitter(width = 0.05, height = 0),
+    point_shape = '|', point_size = 0.5, point_alpha = 1, alpha = 0.7) +
+  scale_fill_manual(values = final_annotation) +
+  my_custom_theme()
+
+df_raw |>
+  # drop_na(p_good) |>
+  mutate(final_annotation = ifelse(is.na(final_annotation), "No-hit", final_annotation)) |>
+  dplyr::mutate(final_annotation = dplyr::recode_factor(final_annotation, !!!recode_col)) |>
+  ggplot(aes(x = score, y = p_good, color = as.factor(Score_sf))) +
+  geom_point(alpha = 0.25, size = 0.2) +
+  geom_smooth(method = "loess", se = FALSE, linewidth = 1.2, span = 0.5) +
+  # scale_color_manual(values = final_annotation) +
+  facet_wrap(~ final_annotation, nrow = 1) +
+  my_custom_theme()
 
 # Exit
 
