@@ -25,7 +25,7 @@
 #
 # ====================================================================
 
-# dir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/vfolds_loso_resampling_dir/"
+dir <- "~/Documents/GitHub/ConotoxinBenchmark/INPUTS/vfolds_loso_resampling_dir/"
 
 setwd(dir)
 
@@ -80,7 +80,7 @@ cat(sprintf("Loaded %d LOSO folds and %d simulated datasets\n",
 # ---- Discover per-assembly contig metrics from TransRate ----
 # Assemblers.sh writes to transrate_contigs_dir/<assembly>_dir/contigs.csv
 contig_files <- list.files(
-  path       = file.path(opt$sim_dir),
+  path       = "transrate_contigs_dir", #file.path(opt$sim_dir),
   pattern    = "contigs\\.csv$",
   recursive  = TRUE,
   full.names = TRUE
@@ -127,6 +127,12 @@ summarise_assembly <- function(csv_path) {
                  if ("has_crb" %in% colnames(df)) "has_crb" else NA
   n_ref_hit   <- if (!is.na(crbb_col)) sum(as.logical(df[[crbb_col]]), na.rm = TRUE) else NA
   pct_ref_hit <- if (!is.na(n_ref_hit)) n_ref_hit / n_contigs else NA
+  
+  
+  return(df)
+  # df |> filter(length >= 200) %>%
+  #   # group_by(vfold_set, Assembler) %>%
+  #   calculate_metrics(reference_coverage_val = 0.9) %>%
 
   # Reference-coverage proxy for sensitivity
   ref_cov_col <- if ("p_unique_ref"   %in% colnames(df)) "p_unique_ref"   else
@@ -149,6 +155,20 @@ summarise_assembly <- function(csv_path) {
 }
 
 asm_summary <- map_dfr(contig_files, summarise_assembly)
+
+
+# replace with calculate_metrics()
+
+read_csv <- function(csv_path) {
+  
+  df <- tryCatch(suppressWarnings(read_csv(csv_path, show_col_types = FALSE)),
+                 error = function(e) NULL)
+  
+  if (is.null(df) || nrow(df) == 0) return(NULL) }
+
+
+transratedf <- lapply(file.path(opt$sim_dir, contig_files), read_csv)
+
 
 if (nrow(asm_summary) == 0) {
   stop("Could not extract any metrics from TransRate contigs.csv files. Check column names.")
