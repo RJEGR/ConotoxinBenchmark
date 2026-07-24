@@ -79,6 +79,11 @@ df <- df %>%
                               "UNCLASSIFIED", genesuperfamily)
   )
 
+# Regroup Divergent into single cohort
+
+df <- df %>%
+  mutate(genesuperfamily = ifelse(grepl("Divergent", genesuperfamily), "Divergent", genesuperfamily))
+
 # ---- Diagnose superfamily distribution ----
 sf_counts <- df %>%
   count(genesuperfamily, sort = TRUE, name = "n_sequences") %>%
